@@ -73,6 +73,51 @@ ignore_missing_imports = true
 [tool.django-stubs]
 django_settings_module = "config.settings.test"
 
+# --- import-linter: the architecture rules from HANDOFF.md section 3 --------
+
+[tool.importlinter]
+root_packages = ["apps", "config"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Each feature is layered: interfaces > infrastructure > application > domain"
+type = "layers"
+containers = ["apps.tasks", "apps.users", "apps.core"]
+layers = ["interfaces", "infrastructure", "application", "(domain)"]
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "Domain and application are framework-free"
+type = "forbidden"
+source_modules = [
+    "apps.tasks.domain", "apps.tasks.application",
+    "apps.users.domain", "apps.users.application",
+    "apps.core.application",
+]
+forbidden_modules = [
+    "django", "rest_framework", "rest_framework_simplejwt", "drf_spectacular",
+    "celery", "kombu", "redis", "psycopg",
+]
+
+[[tool.importlinter.contracts]]
+name = "Only the composition root (interfaces.container) touches infrastructure"
+type = "forbidden"
+source_modules = ["apps.tasks.interfaces", "apps.users.interfaces", "apps.core.interfaces"]
+forbidden_modules = ["apps.tasks.infrastructure", "apps.users.infrastructure", "apps.core.infrastructure"]
+ignore_imports = ["apps.*.interfaces.container -> apps.*.infrastructure.**"]
+
+[[tool.importlinter.contracts]]
+name = "Tasks reaches users only through users.application"
+type = "forbidden"
+source_modules = ["apps.tasks"]
+forbidden_modules = ["apps.users.domain", "apps.users.infrastructure", "apps.users.interfaces"]
+
+[[tool.importlinter.contracts]]
+name = "Users does not depend on tasks"
+type = "forbidden"
+source_modules = ["apps.users"]
+forbidden_modules = ["apps.tasks"]
+
 # --- pytest / coverage ------------------------------------------------------
 
 [tool.pytest.ini_options]
