@@ -1,0 +1,87 @@
+[project]
+name = "taskmanager"
+version = "0.1.0"
+description = "Task Manager API (Django + DRF)"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=6.1,<6.2",
+    "djangorestframework>=3.18",
+    "djangorestframework-simplejwt>=5.5",
+    "drf-spectacular>=0.30",
+    "celery[redis]>=5.7",
+    "redis>=8.1",
+    "psycopg[binary]>=3.3",
+    "gunicorn>=27",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2",
+    "pytest-django>=4.14",
+    "pytest-cov>=7.1",
+    "factory-boy>=3.3",
+    "ruff>=0.17",
+    "mypy>=2.4",
+    "django-stubs>=6.1",
+    "djangorestframework-stubs>=3.18",
+    "import-linter>=2.16",
+    "pre-commit>=4.7",
+]
+
+[tool.uv]
+# This is an application, not a library: install dependencies only, never build a wheel.
+package = false
+
+# --- ruff -------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["**/migrations/**"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "B", "UP", "SIM", "C4", "N", "RUF",
+    "S",    # security
+    "DJ",   # Django
+    "DTZ",  # naive datetimes / date.today(): time must come from the Clock port
+    "PT",   # pytest style
+    "TID",  # banned imports
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"]
+"config/settings/*" = ["F403", "F405"]
+
+# --- mypy -------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+exclude = ["/migrations/"]
+
+[[tool.mypy.overrides]]
+module = ["*.tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = ["celery.*", "kombu.*"]
+ignore_missing_imports = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+# --- pytest / coverage ------------------------------------------------------
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+testpaths = ["apps", "config"]
+addopts = "--strict-markers --cov --cov-report=term-missing:skip-covered --cov-fail-under=90"
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["apps", "config"]
+branch = true
+omit = ["*/migrations/*", "*/tests/*", "config/wsgi.py", "config/asgi.py"]
