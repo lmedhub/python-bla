@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      # Credentials match the defaults in config/settings/test.py.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: taskmanager
+          POSTGRES_USER: taskmanager
+          POSTGRES_PASSWORD: taskmanager
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U taskmanager -d taskmanager"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Lint, types and architecture contracts
+        run: make lint
+
+      - name: Tests with coverage gate
+        run: make test
