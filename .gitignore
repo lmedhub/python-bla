@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node
+node_modules/
+dist/
+
+# Local config and secrets
+.env
+
+# Brief and job post stay local
+docs/source/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
