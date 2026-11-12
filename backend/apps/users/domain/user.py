@@ -10,4 +10,6 @@ class User:
 
 
 def normalize_email(raw: str) -> str:
-    raise NotImplementedError
+    # Lowercase the whole address, not just the domain: "Alice@..." and "alice@..." should be
+    # the same account. Mail servers almost never treat the local part as case-sensitive.
+    return raw.strip().lower()
