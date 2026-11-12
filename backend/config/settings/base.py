@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     "rest_framework",
     # Each feature's Django app is its infrastructure layer (ADR 0001).
     "apps.users.infrastructure.apps.UsersConfig",
+    "apps.tasks.infrastructure.apps.TasksConfig",
 ]
 
 AUTH_USER_MODEL = "users.User"
