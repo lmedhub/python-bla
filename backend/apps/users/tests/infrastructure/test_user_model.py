@@ -51,3 +51,7 @@ def test_database_rejects_a_duplicate_email():
 
     with pytest.raises(IntegrityError), transaction.atomic():
         make_user(email="frank@example.com")
+
+
+def test_shows_as_its_email():
+    assert str(make_user(email="grace@example.com")) == "grace@example.com"

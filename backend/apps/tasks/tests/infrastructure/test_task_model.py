@@ -54,3 +54,7 @@ def test_has_an_index_on_status_and_due_date():
     index_fields = [index.fields for index in models.Task._meta.indexes]
 
     assert ["status", "due_date"] in index_fields
+
+
+def test_shows_as_its_title():
+    assert str(make_task_row(title="Write tests")) == "Write tests"
