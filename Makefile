@@ -17,6 +17,7 @@ lint:
 	$(BACKEND) uv run ruff format --check .
 	$(BACKEND) uv run mypy .
 	$(BACKEND) uv run lint-imports --no-cache
+	$(BACKEND) uv run python manage.py makemigrations --check --dry-run --settings=config.settings.test
 
 schema:
 	@echo "schema: added in Phase 3" && exit 1
