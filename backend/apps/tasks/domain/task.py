@@ -23,6 +23,8 @@ class Task:
     due_date: date | None = None
     assignee_id: int | None = None
     completed_at: datetime | None = None
+    # Optimistic locking: every successful update increments it (ADR 0010).
+    version: int = 1
     id: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

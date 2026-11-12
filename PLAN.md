@@ -8,8 +8,8 @@ decision taken after HANDOFF was written.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 0 | Skeleton, uv, pre-commit, import-linter, CI skeleton, compose db/redis, health check, ADRs | done (PR #1) |
-| 1 | Domain + application, test-driven, no Django | in review (branch `phase-1`) |
-| 2 | Infrastructure: custom User first, Task model, migrations, repositories | not started |
+| 1 | Domain + application, test-driven, no Django | done (PR #2) |
+| 2 | Infrastructure: custom User first, Task model, migrations, repositories | in review (branch `phase-2`) |
 | 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | not started |
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior | not started |
 | 5 | Frontend | not started |
@@ -45,6 +45,14 @@ decision taken after HANDOFF was written.
 | D23 | The assignee's permission is judged on fields that actually **change**, so re-sending an unchanged title with a status change is allowed. Permission is checked before validation | `domain/task.py`, ADR 0008 |
 | D24 | `GET /users` returns all active users without pagination (assignee picker) | Phase 3 |
 | D25 | The overdue digest use case is built in Phase 4, with Celery | Phase 4 |
+| D26 | Tasks checks assignees with `get_user_model()` in `tasks.infrastructure` (option b), so it never imports users | ADR 0009 |
+| D27 | Emails stored lowercase (domain `normalize_email` + DB check constraint); login lookup is case-insensitive | ADR 0009 |
+| D28 | **Optimistic locking** on task updates (`version` column, `UPDATE ... WHERE version = ?`, 409 `ConflictError`) plus optional `expected_version` in the use case. Replaces "last write wins" | ADR 0010 |
+| D29 | Task timestamps come from the `Clock` port (no `auto_now`), so tests assert exact times | `tasks/infrastructure/repositories.py` |
+| D30 | Database check constraints mirror domain invariants: valid status, non-empty title, `completed_at` set iff done | `tasks/infrastructure/models.py` |
+| D31 | `created_by` is PROTECT (users are deactivated, not deleted); `assignee` is SET_NULL | `tasks/infrastructure/models.py` |
+| D32 | API returns user ids only; the frontend maps names from `GET /users` | Phase 3 / 5 |
+| D33 | `make lint` / CI fail when a model change has no migration (`makemigrations --check`) | `Makefile` |
 
 ## Known limits (so far)
 
@@ -55,6 +63,9 @@ decision taken after HANDOFF was written.
   shift by a day (ADR 0007).
 - Use cases report only the first failing business rule (title, then due date, then assignee).
 - `GET /users` is unpaginated; fine for a team, not for a large organisation.
+- Deleting a task is not version-checked (ADR 0010).
+- `nulls_last=True` in the list order cannot be tested on Postgres, which already sorts NULLs last
+  for ascending order (an "equivalent mutant"). It is kept for intent and portability.
 
 ## Open questions
 

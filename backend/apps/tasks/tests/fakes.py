@@ -3,6 +3,7 @@
 from dataclasses import replace
 from datetime import date, datetime, timedelta
 
+from apps.core.domain.errors import ConflictError
 from apps.tasks.application.queries import Page, PageRequest, TaskFilter
 from apps.tasks.domain.task import Task
 
@@ -40,8 +41,11 @@ class InMemoryTaskRepository:
         return replace(saved)
 
     def update(self, task: Task) -> Task:
-        self.rows[task.require_id()] = replace(task)
-        return replace(task)
+        if self.rows[task.require_id()].version != task.version:
+            raise ConflictError("Task was changed by someone else.")
+        saved = replace(task, version=task.version + 1)
+        self.rows[task.require_id()] = saved
+        return replace(saved)
 
     def delete(self, task_id: int) -> None:
         del self.rows[task_id]

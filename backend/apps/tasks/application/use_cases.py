@@ -2,7 +2,12 @@ from dataclasses import dataclass, fields
 from datetime import date
 from enum import Enum
 
-from apps.core.domain.errors import InvalidInputError, NotFoundError, PermissionDeniedError
+from apps.core.domain.errors import (
+    ConflictError,
+    InvalidInputError,
+    NotFoundError,
+    PermissionDeniedError,
+)
 from apps.tasks.application.ports import Clock, Notifier, TaskRepository, UserDirectory
 from apps.tasks.application.queries import Page, PageRequest, TaskFilter
 from apps.tasks.domain.rules import check_due_date_on_create, clean_title
@@ -43,6 +48,8 @@ class UpdateTaskCommand:
     actor_id: int
     task_id: int
     changes: TaskChanges
+    # The version the client last saw. None means "do not check" (e.g. a quick status toggle).
+    expected_version: int | None = None
 
 
 class CreateTask:
@@ -108,6 +115,9 @@ class UpdateTask:
         # Permission comes first, so someone who may not edit learns nothing from validation.
         if not task.can_be_updated_by(command.actor_id, _changed_fields(task, changes)):
             raise PermissionDeniedError("You may not change these fields of this task.")
+        # The client edited an older copy: saving would silently drop someone else's change.
+        if command.expected_version is not None and command.expected_version != task.version:
+            raise ConflictError("Task was changed by someone else. Reload and try again.")
 
         previous_assignee_id = task.assignee_id
         if not isinstance(changes.title, Unset):
