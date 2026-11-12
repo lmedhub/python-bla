@@ -29,5 +29,9 @@ class Migration(migrations.Migration):
                 ('assignee', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to=settings.AUTH_USER_MODEL)),
                 ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='+', to=settings.AUTH_USER_MODEL)),
             ],
+            options={
+                'indexes': [models.Index(fields=['status', 'due_date'], name='tasks_status_due_date_idx')],
+                'constraints': [models.CheckConstraint(condition=models.Q(('status__in', ['todo', 'in_progress', 'done'])), name='tasks_task_status_valid'), models.CheckConstraint(condition=models.Q(('title', ''), _negated=True), name='tasks_task_title_not_blank'), models.CheckConstraint(condition=models.Q(models.Q(('completed_at__isnull', False), ('status', 'done')), models.Q(models.Q(('status', 'done'), _negated=True), ('completed_at__isnull', True)), _connector='OR'), name='tasks_task_completed_at_matches_status')],
+            },
         ),
     ]
