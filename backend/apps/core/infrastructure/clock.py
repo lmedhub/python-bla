@@ -1,9 +1,13 @@
 from datetime import date, datetime
 
+from django.utils import timezone
+
 
 class SystemClock:
+    """The real clock. With USE_TZ=True, timezone.now() is an aware UTC datetime."""
+
     def now(self) -> datetime:
-        raise NotImplementedError
+        return timezone.now()
 
     def today(self) -> date:
-        raise NotImplementedError
+        return self.now().date()
