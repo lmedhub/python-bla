@@ -87,7 +87,8 @@ def health_report() -> HealthReport:
 | --- | --- |
 | Versions | PyPI JSON for every package, then a real `uv pip compile` of the full set (not memory) |
 | Django 6 compatibility | Smoke test on Django 6.1.3: simplejwt login, rotation, reuse rejected (401), blacklist; `spectacular --validate`; run with `-W default`, no deprecation warnings |
-| TDD | Tests committed red first (`test:`), then the code (`feat:`). Red output: 4 `ModuleNotFoundError`s |
+| TDD | Tests committed red first (`test:`), then the code (`feat:`). Phase 0 red: 4 `ModuleNotFoundError`s. From Phase 1, red commits include typed stubs, so the red is a behavior failure (e.g. "28 failed, 1 passed", "45 failed") and the pre-commit hooks still pass |
+| Mutation check | Phase 1: three business rules broken on purpose ("done" again moves `completed_at`, assignee may edit any field, past due date allowed on create). Each was caught by 2 tests (domain + use case), then reverted |
 | Coverage | `--cov-fail-under=90` in `addopts`, so every run enforces it |
 | Architecture | `lint-imports` 5/5 kept, then **negative tests**: a deliberate `import django` in `tasks.domain` and an interfaces→infrastructure import were both reported BROKEN, then reverted |
 | ORM ban | Ruff TID251 negative test: `from django.db import models` in `interfaces/` is flagged |
@@ -108,6 +109,11 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 5 | 0 | Misread ruff SIM300: I thought it flagged `ENVIRONMENT[...]` and moved it to a variable; ruff actually flagged the upper-case `prod.SECRET_KEY` | Second ruff run, same error | Used ruff's suggested operand order |
 | 6 | 0 | Added an import-linter `ignore_imports` rule for tasks tests importing users, for test code that does not exist yet | import-linter fails on ignore rules that match nothing | Removed it; it comes back when a real test needs it |
 | 7 | 0 | CI used `astral-sh/setup-uv@v10`. I had checked the latest release (v10.3.3) but assumed a floating `v10` tag existed; it does not. The first CI run failed at "Set up job" | First CI run on PR #1 | Pinned both actions to commit SHAs (with the version in a comment), after checking the refs through the GitHub API |
+| 8 | 1 | My plan said "commit the red tests", but red tests import modules that do not exist yet, and the pre-commit mypy hook rejected the commit | pre-commit (mypy `import-not-found`) | Red commits now include typed stubs that raise `NotImplementedError`. Hooks were not skipped |
+| 9 | 1 | Named the shared exceptions `ValidationFailed`, `PermissionDenied`, `NotFound` as planned | ruff N818 (exception names should end in `Error`) | Renamed to `InvalidInputError`, `PermissionDeniedError`, `NotFoundError`, also avoiding Django/DRF name clashes (ADR 0008) |
+| 10 | 1 | Test modules imported actor-id constants from `conftest.py`, which pytest does not intend to be imported | Self-review before commit | Moved them to `tests/application/constants.py` |
+| 11 | 1 | Untyped fixture parameters made mypy see `Any` returned as `Task`; `date \| None \| Unset` unions; three test lines over 100 chars | mypy `no-any-return`, ruff RUF036 / E501 / PT012 | Typed the fixtures, put `None` last, split the lines |
+| 12 | 1 | Wrote `if changes.assignee_id not in (None, previous_assignee_id)`: correct, but harder to explain than it needs to be | Self-review against HANDOFF "explain in one sentence" | Rewrote as an explicit `is not None and != previous` check |
 
 ## 5. Findings that changed the plan
 
@@ -119,10 +125,28 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 - import-linter cannot forbid `django.db` (a subpackage of an external package), so ruff TID251 does it.
 - import-linter's cache once reported a violation that had already been reverted (a false
   BROKEN). Pre-commit runs it with `--no-cache`.
+- The in-memory fake repository deliberately does **not** re-implement filtering: copying the
+  filter logic into a fake would only test the copy. `ListTasks` is checked for what it passes
+  (filter, page, `clock.today()`); real filtering is tested against Postgres in Phase 2.
+- The fake repository stores **copies** (like a database), so a test can prove that a rejected
+  update saved nothing.
 
 ## 6. Edge cases, auth and validation decisions
 
-See ADRs 0003 (JWT), 0005 (Redis down) and 0006 (filters). Later phases add rows here.
+See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008 (errors).
+
+| Case | Decision | Test |
+| --- | --- | --- |
+| Blank / whitespace title | 400 on `title`; title trimmed; 200 chars max, measured after trimming | `test_rules.py` |
+| Past due date | Rejected on create, allowed on update | `test_rules.py`, `test_update_task.py` |
+| Unknown or inactive assignee | 400 on `assignee`, not 409 | `test_create_task.py`, `test_update_task.py` |
+| "done" sent twice | Keeps the first `completed_at` | `test_task.py`, `test_update_task.py` |
+| Assignee edits title | 403, nothing saved | `test_update_task.py` |
+| Stranger sends invalid data | 403 before any 400 | `test_update_task.py` |
+| Assignee re-sends unchanged fields | Allowed (only real changes count) | `test_update_task.py` |
+| Reassign / same assignee / unassign | Notify only a new, non-null assignee | `test_update_task.py` |
+| `page_size` 0 or 101, page 0 | 400 on that field; both fields reported together | `test_queries.py` |
+| Page past the end | Empty items, real total, no next page | `test_queries.py` |
 
 ## 7. Performance and idiomatic quality
 
