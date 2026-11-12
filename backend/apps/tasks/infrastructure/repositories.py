@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import date
 from typing import Any
 
-from django.db.models import F
+from django.db.models import F, Q
 
 from apps.core.domain.errors import ConflictError
 from apps.tasks.application.ports import Clock
@@ -39,7 +39,31 @@ class DjangoTaskRepository:
         models.Task.objects.filter(pk=task_id).delete()
 
     def find(self, task_filter: TaskFilter, page: PageRequest, today: date) -> Page[Task]:
-        raise NotImplementedError
+        rows = models.Task.objects.filter(_conditions(task_filter, today)).order_by(
+            # Tasks without a due date go last; id breaks ties so pages never overlap.
+            F("due_date").asc(nulls_last=True),
+            "id",
+        )
+        total = rows.count()
+        items = [_to_entity(row) for row in rows[page.offset : page.offset + page.page_size]]
+        return Page(items=items, total=total, request=page)
+
+
+def _conditions(task_filter: TaskFilter, today: date) -> Q:
+    condition = Q()
+    if task_filter.status is not None:
+        condition &= Q(status=task_filter.status.value)
+    if task_filter.assignee_id is not None:
+        condition &= Q(assignee_id=task_filter.assignee_id)
+    if task_filter.due_after is not None:
+        condition &= Q(due_date__gte=task_filter.due_after)
+    if task_filter.due_before is not None:
+        condition &= Q(due_date__lte=task_filter.due_before)
+    if task_filter.overdue is not None:
+        # Same rule as Task.is_overdue. Django's negation keeps tasks with no due date.
+        overdue = Q(due_date__lt=today) & ~Q(status=TaskStatus.DONE.value)
+        condition &= overdue if task_filter.overdue else ~overdue
+    return condition
 
 
 def _columns(task: Task) -> dict[str, Any]:
