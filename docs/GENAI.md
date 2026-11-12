@@ -107,6 +107,7 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 4 | 0 | A line in the health view was over 100 characters | ruff E501 | Restructured the response code |
 | 5 | 0 | Misread ruff SIM300: I thought it flagged `ENVIRONMENT[...]` and moved it to a variable; ruff actually flagged the upper-case `prod.SECRET_KEY` | Second ruff run, same error | Used ruff's suggested operand order |
 | 6 | 0 | Added an import-linter `ignore_imports` rule for tasks tests importing users, for test code that does not exist yet | import-linter fails on ignore rules that match nothing | Removed it; it comes back when a real test needs it |
+| 7 | 0 | CI used `astral-sh/setup-uv@v10`. I had checked the latest release (v10.3.3) but assumed a floating `v10` tag existed; it does not. The first CI run failed at "Set up job" | First CI run on PR #1 | Pinned both actions to commit SHAs (with the version in a comment), after checking the refs through the GitHub API |
 
 ## 5. Findings that changed the plan
 
