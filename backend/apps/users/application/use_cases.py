@@ -1,3 +1,4 @@
+from apps.core.domain.errors import NotFoundError
 from apps.users.application.ports import UserRepository
 from apps.users.domain.user import User
 
@@ -7,7 +8,7 @@ class ListActiveUsers:
         self._users = users
 
     def execute(self) -> list[User]:
-        raise NotImplementedError
+        return self._users.list_active()
 
 
 class GetUser:
@@ -15,4 +16,7 @@ class GetUser:
         self._users = users
 
     def execute(self, user_id: int) -> User:
-        raise NotImplementedError
+        user = self._users.get(user_id)
+        if user is None:
+            raise NotFoundError("User not found.")
+        return user
