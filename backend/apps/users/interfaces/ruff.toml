@@ -1,0 +1,8 @@
+# Interfaces call use cases; they never query the database themselves.
+# (import-linter cannot forbid subpackages of external packages, so ruff does it here.)
+extend = "../../../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"django.db.models".msg = "Interfaces must not use the ORM. Call a use case instead."
+"django.db.connection".msg = "Interfaces must not query the database. Call a use case instead."
+"django.db.connections".msg = "Interfaces must not query the database. Call a use case instead."
