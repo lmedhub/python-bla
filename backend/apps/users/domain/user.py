@@ -7,3 +7,7 @@ class User:
     email: str
     name: str
     is_active: bool = True
+
+
+def normalize_email(raw: str) -> str:
+    raise NotImplementedError

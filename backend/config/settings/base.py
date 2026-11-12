@@ -12,7 +12,11 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "rest_framework",
+    # Each feature's Django app is its infrastructure layer (ADR 0001).
+    "apps.users.infrastructure.apps.UsersConfig",
 ]
+
+AUTH_USER_MODEL = "users.User"
 
 # A JSON API with JWT auth: no sessions, CSRF or template middleware needed.
 MIDDLEWARE = [
