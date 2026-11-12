@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 
+from apps.core.domain.errors import InvalidInputError
 from apps.tasks.domain.task import TaskStatus
 
 DEFAULT_PAGE_SIZE = 10
@@ -24,11 +25,17 @@ class PageRequest:
     page_size: int = DEFAULT_PAGE_SIZE
 
     def __post_init__(self) -> None:
-        raise NotImplementedError
+        errors: dict[str, list[str]] = {}
+        if self.page < 1:
+            errors["page"] = ["Must be 1 or more."]
+        if not 1 <= self.page_size <= MAX_PAGE_SIZE:
+            errors["page_size"] = [f"Must be between 1 and {MAX_PAGE_SIZE}."]
+        if errors:
+            raise InvalidInputError(errors)
 
     @property
     def offset(self) -> int:
-        raise NotImplementedError
+        return (self.page - 1) * self.page_size
 
 
 @dataclass(frozen=True)
@@ -39,8 +46,8 @@ class Page[T]:
 
     @property
     def has_next(self) -> bool:
-        raise NotImplementedError
+        return self.request.offset + len(self.items) < self.total
 
     @property
     def has_previous(self) -> bool:
-        raise NotImplementedError
+        return self.request.page > 1
