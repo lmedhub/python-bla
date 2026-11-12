@@ -25,3 +25,7 @@ class PermissionDeniedError(DomainError):
 
 class NotFoundError(DomainError):
     """404."""
+
+
+class ConflictError(DomainError):
+    """409. The data changed since the client (or this request) read it."""

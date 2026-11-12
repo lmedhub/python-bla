@@ -43,6 +43,8 @@ class UpdateTaskCommand:
     actor_id: int
     task_id: int
     changes: TaskChanges
+    # The version the client last saw. None means "do not check" (e.g. a quick status toggle).
+    expected_version: int | None = None
 
 
 class CreateTask:

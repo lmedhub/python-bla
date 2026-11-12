@@ -18,7 +18,12 @@ class TaskRepository(Protocol):
 
     def add(self, task: Task) -> Task: ...
 
-    def update(self, task: Task) -> Task: ...
+    def update(self, task: Task) -> Task:
+        """Save only if the stored version still equals `task.version`, else raise ConflictError.
+
+        Returns the task with `version + 1`.
+        """
+        ...
 
     def delete(self, task_id: int) -> None: ...
 
