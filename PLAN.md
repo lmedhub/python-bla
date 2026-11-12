@@ -7,8 +7,8 @@ decision taken after HANDOFF was written.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| 0 | Skeleton, uv, pre-commit, import-linter, CI skeleton, compose db/redis, health check, ADRs | in review (branch `phase-0`) |
-| 1 | Domain + application, test-driven, no Django | not started |
+| 0 | Skeleton, uv, pre-commit, import-linter, CI skeleton, compose db/redis, health check, ADRs | done (PR #1) |
+| 1 | Domain + application, test-driven, no Django | in review (branch `phase-1`) |
 | 2 | Infrastructure: custom User first, Task model, migrations, repositories | not started |
 | 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | not started |
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior | not started |
@@ -27,7 +27,7 @@ decision taken after HANDOFF was written.
 | D5 | Throttles fail open when Redis is down; health reports `degraded` | ADR 0005 |
 | D6 | Added deps: gunicorn, pre-commit, django-stubs, djangorestframework-stubs. Not used: freezegun (Clock port instead), django-redis (Django's built-in RedisCache) | `pyproject.toml` |
 | D7 | `ATOMIC_REQUESTS=True`: one transaction per request instead of a Unit-of-Work port. Health opts out so a DB outage gives 503, not 500 | `config/settings/base.py` |
-| D8 | "Today" is UTC, from the Clock port | ADR (Phase 1) |
+| D8 | "Today" is UTC, from the Clock port. Due date may not be in the past on create; any date on update | ADR 0007 |
 | D9 | No `POST /tasks/{id}/complete`; the frontend uses `PATCH status=done` | — |
 | D10 | Error shape for every status: `{"code", "detail", "fields"}` | Phase 3 |
 | D11 | Shared code (health, error handler, pagination envelope) lives in `apps/core` | ADR 0001 |
@@ -39,12 +39,22 @@ decision taken after HANDOFF was written.
 | D17 | "interfaces must not use the ORM" is enforced by ruff TID251, because import-linter cannot forbid `django.db` (an external subpackage) | `apps/*/interfaces/ruff.toml` |
 | D18 | No migrations in Phase 0, so the custom User model can be the first migration in Phase 2 | — |
 | D19 | No `.dockerignore` yet: there is no Dockerfile until the API image is built | Phase 6 |
+| D20 | Red commits contain **typed stubs** (`raise NotImplementedError`), so tests fail on behavior and the pre-commit mypy hook still passes. Hooks are never skipped | `docs/GENAI.md` |
+| D21 | Shared errors `InvalidInputError` (400), `PermissionDeniedError` (403), `NotFoundError` (404) in `apps/core/domain`. Renamed from the planned `ValidationFailed` etc. (ruff N818, and no clash with Django/DRF names) | ADR 0008 |
+| D22 | A page past the end returns 200 with empty `results` and the real `count` | `application/queries.py` |
+| D23 | The assignee's permission is judged on fields that actually **change**, so re-sending an unchanged title with a status change is allowed. Permission is checked before validation | `domain/task.py`, ADR 0008 |
+| D24 | `GET /users` returns all active users without pagination (assignee picker) | Phase 3 |
+| D25 | The overdue digest use case is built in Phase 4, with Celery | Phase 4 |
 
 ## Known limits (so far)
 
 - The database-down branch of `database_is_up()` is not covered by an automated test (it is
   checked by hand against a stopped container). The 503 response itself is tested.
 - On Windows, a stopped Redis on `localhost` takes ~2 s to report down (IPv6 then IPv4 attempts).
+- "Today" is the UTC date: near midnight, users far from UTC can see the create rule for due dates
+  shift by a day (ADR 0007).
+- Use cases report only the first failing business rule (title, then due date, then assignee).
+- `GET /users` is unpaginated; fine for a team, not for a large organisation.
 
 ## Open questions
 
