@@ -88,6 +88,8 @@ def health_report() -> HealthReport:
 | Versions | PyPI JSON for every package, then a real `uv pip compile` of the full set (not memory) |
 | Django 6 compatibility | Smoke test on Django 6.1.3: simplejwt login, rotation, reuse rejected (401), blacklist; `spectacular --validate`; run with `-W default`, no deprecation warnings |
 | TDD | Tests committed red first (`test:`), then the code (`feat:`). Phase 0 red: 4 `ModuleNotFoundError`s. From Phase 1, red commits include typed stubs, so the red is a behavior failure (e.g. "28 failed, 1 passed", "45 failed") and the pre-commit hooks still pass |
+| Mutation check (Phase 2) | Infrastructure: update without the version filter → concurrency test fails; overdue without "not done" → 2 tests fail; removing `nulls_last=True` → **survived**, because Postgres already sorts NULLs last for ASC (documented, not hidden) |
+| Migrations | `makemigrations --check` exits 1 after an unmigrated model change (tried on purpose, then reverted) |
 | Mutation check | Phase 1: three business rules broken on purpose ("done" again moves `completed_at`, assignee may edit any field, past due date allowed on create). Each was caught by 2 tests (domain + use case), then reverted |
 | Coverage | `--cov-fail-under=90` in `addopts`, so every run enforces it |
 | Architecture | `lint-imports` 5/5 kept, then **negative tests**: a deliberate `import django` in `tasks.domain` and an interfaces→infrastructure import were both reported BROKEN, then reverted |
@@ -114,6 +116,12 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 10 | 1 | Test modules imported actor-id constants from `conftest.py`, which pytest does not intend to be imported | Self-review before commit | Moved them to `tests/application/constants.py` |
 | 11 | 1 | Untyped fixture parameters made mypy see `Any` returned as `Task`; `date \| None \| Unset` unions; three test lines over 100 chars | mypy `no-any-return`, ruff RUF036 / E501 / PT012 | Typed the fixtures, put `None` last, split the lines |
 | 12 | 1 | Wrote `if changes.assignee_id not in (None, previous_assignee_id)`: correct, but harder to explain than it needs to be | Self-review against HANDOFF "explain in one sentence" | Rewrote as an explicit `is not None and != previous` check |
+| 13 | 2 | The first user model stub contained a pointless `__init__` override (dead code) | Self-review before generating the migration | Removed it |
+| 14 | 2 | Wrapped factory_boy with `cast` and `type: ignore`, assuming it was untyped; it is generic (`DjangoModelFactory[T]`, `.create() -> T`) | mypy notes, then reading the factory_boy source | Typed the factory with generics: no cast, no ignore |
+| 15 | 2 | Then removed the tests' `disallow_untyped_calls = false`, assuming generics covered everything; `Sequence` and `Password` are untyped | mypy `no-untyped-call` in the pre-commit hook | Restored the relaxation for tests only, with a comment saying why |
+| 16 | 2 | A shell heredoc batch that wrote several files had broken quoting and ran nothing | bash syntax error | Wrote the files one by one with the editor tool |
+| 17 | 2 | First `SystemClock` test accepted "today or yesterday": it would pass with a broken implementation | Self-review | Replaced with a deterministic subclass test (`now()` fixed at 23:59 UTC) |
+| 18 | 2 | Reported the migration check's exit code through `\| tail`, which printed `exit=0` (the exit code of `tail`) | Noticed the output did not match the expected failure | Re-ran without the pipe: exit code 1 |
 
 ## 5. Findings that changed the plan
 
@@ -130,6 +138,11 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
   (filter, page, `clock.today()`); real filtering is tested against Postgres in Phase 2.
 - The fake repository stores **copies** (like a database), so a test can prove that a rejected
   update saved nothing.
+- Postgres sorts NULLs last for `ASC` by default, so the explicit `nulls_last=True` is an
+  equivalent mutant there (no test can detect its removal). Kept for intent, and logged as a limit.
+- Django already creates indexes for foreign keys (`assignee_id`, `created_by_id`), confirmed with
+  `sqlmigrate`. Only the composite `(status, due_date)` index is declared.
+- `get_user_model()` lets tasks check users without importing the users feature (ADR 0009).
 
 ## 6. Edge cases, auth and validation decisions
 
@@ -146,8 +159,21 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 | Assignee re-sends unchanged fields | Allowed (only real changes count) | `test_update_task.py` |
 | Reassign / same assignee / unassign | Notify only a new, non-null assignee | `test_update_task.py` |
 | `page_size` 0 or 101, page 0 | 400 on that field; both fields reported together | `test_queries.py` |
-| Page past the end | Empty items, real total, no next page | `test_queries.py` |
+| Page past the end | Empty items, real total, no next page | `test_queries.py`, `test_task_find.py` |
+| Two users save the same task | Second save gets `ConflictError` (409); first write kept | `test_task_repository.py` |
+| Client edits a stale copy | `expected_version` mismatch → 409, nothing saved; 403 still wins | `test_optimistic_locking.py` |
+| Email letter case | Stored lowercase (DB check); login with "Carol@Example.com" works | `test_user_model.py` |
+| Inactive user logs in | Rejected | `test_user_model.py` |
+| Assignee user deleted | Their tasks become unassigned; creators cannot be deleted | `test_task_model.py` |
+| Overdue filter and tasks without due date | `overdue=false` includes them | `test_task_find.py` |
 
 ## 7. Performance and idiomatic quality
 
-To be filled from Phase 2 (query counts with `django_assert_num_queries`, `EXPLAIN` evidence).
+- **Query count**: the task list is exactly 2 queries (count + page) for any number of rows,
+  asserted with `django_assert_num_queries(2)` over 15 tasks. The domain `Task` holds ids, not
+  related objects, so an N+1 cannot happen in the repository.
+- **Indexes**: `(status, due_date)` for the default order and the main filters, plus Django's
+  automatic foreign key indexes. `EXPLAIN` evidence comes in Phase 7.
+- **Constraints in the database**, not only in Python: status, title and `completed_at` rules
+  hold even for raw SQL or a future bulk script.
+- **Locking**: optimistic, with a single conditional `UPDATE`, so reads never block (ADR 0010).
