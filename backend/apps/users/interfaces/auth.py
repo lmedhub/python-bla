@@ -9,6 +9,7 @@ from contextlib import suppress
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated
 from rest_framework.permissions import AllowAny
@@ -20,6 +21,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.core.interfaces.schema import error_responses
 from apps.core.interfaces.throttling import LoginThrottle
 from apps.users.interfaces import container
 from apps.users.interfaces.serializers import LoginSerializer, SessionSerializer
@@ -45,6 +47,14 @@ class _CredentialView(APIView):
 class LoginView(_CredentialView):
     throttle_classes = (LoginThrottle,)
 
+    @extend_schema(
+        summary="Sign in",
+        description="Returns an access token and the user. Sets the refresh token as an "
+        "HttpOnly cookie. Limited to 5 attempts a minute per client IP.",
+        auth=[],
+        request=LoginSerializer,
+        responses={200: SessionSerializer, **error_responses(400, 401, 429)},
+    )
     def post(self, request: Request) -> Response:
         credentials = LoginSerializer(data=request.data)
         credentials.is_valid(raise_exception=True)
@@ -62,6 +72,14 @@ class LoginView(_CredentialView):
 
 
 class RefreshView(_CredentialView):
+    @extend_schema(
+        summary="Get a new access token",
+        description="Uses and rotates the refresh cookie. Answers like login, so a page "
+        "reload can restore the session with one call.",
+        auth=[],
+        request=None,
+        responses={200: SessionSerializer, **error_responses(401, 429)},
+    )
     def post(self, request: Request) -> Response:
         cookie = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
         if not cookie:
@@ -82,6 +100,13 @@ class RefreshView(_CredentialView):
 
 
 class LogoutView(_CredentialView):
+    @extend_schema(
+        summary="Sign out",
+        description="Blacklists the refresh cookie and clears it. Safe to call twice.",
+        auth=[],
+        request=None,
+        responses={204: OpenApiResponse(description="Signed out."), **error_responses(429)},
+    )
     def post(self, request: Request) -> Response:
         cookie = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
         if cookie:

@@ -2,18 +2,21 @@
 
 from typing import Any
 
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.interfaces.requests import current_user_id
+from apps.core.interfaces.schema import error_responses
 from apps.tasks.application.queries import PageRequest, TaskFilter
 from apps.tasks.application.use_cases import CreateTaskCommand, TaskChanges, UpdateTaskCommand
 from apps.tasks.domain.task import Task, TaskStatus
 from apps.tasks.interfaces import container
 from apps.tasks.interfaces.pagination import paginated
 from apps.tasks.interfaces.serializers import (
+    PaginatedTaskListSerializer,
     TaskCreateSerializer,
     TaskListQuerySerializer,
     TaskSerializer,
@@ -22,6 +25,13 @@ from apps.tasks.interfaces.serializers import (
 
 
 class TaskCollectionView(APIView):
+    @extend_schema(
+        operation_id="tasks_list",
+        summary="List tasks",
+        description="Ordered by due date (no date last), then id. Filters combine with AND.",
+        parameters=[TaskListQuerySerializer],
+        responses={200: PaginatedTaskListSerializer, **error_responses(400, 401, 429)},
+    )
     def get(self, request: Request) -> Response:
         query = TaskListQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
@@ -33,6 +43,12 @@ class TaskCollectionView(APIView):
         )
         return Response(paginated(request, page, [_serialize(task) for task in page.items]))
 
+    @extend_schema(
+        summary="Create a task",
+        description="The caller becomes the creator. The due date may not be in the past.",
+        request=TaskCreateSerializer,
+        responses={201: TaskSerializer, **error_responses(400, 401, 429)},
+    )
     def post(self, request: Request) -> Response:
         payload = TaskCreateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
@@ -51,9 +67,21 @@ class TaskCollectionView(APIView):
 
 
 class TaskDetailView(APIView):
+    @extend_schema(
+        summary="Get a task",
+        responses={200: TaskSerializer, **error_responses(401, 404, 429)},
+    )
     def get(self, request: Request, task_id: int) -> Response:
         return Response(_serialize(container.get_task().execute(task_id)))
 
+    @extend_schema(
+        summary="Change a task",
+        description="Only the fields sent change. The creator may change anything; the "
+        "assignee only the status. Send `version` to get a 409 instead of overwriting a "
+        "newer change.",
+        request=TaskUpdateSerializer,
+        responses={200: TaskSerializer, **error_responses(400, 401, 403, 404, 409, 429)},
+    )
     def patch(self, request: Request, task_id: int) -> Response:
         payload = TaskUpdateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
@@ -69,6 +97,14 @@ class TaskDetailView(APIView):
         )
         return Response(_serialize(task))
 
+    @extend_schema(
+        summary="Delete a task",
+        description="Only the creator may delete.",
+        responses={
+            204: OpenApiResponse(description="Deleted."),
+            **error_responses(401, 403, 404, 429),
+        },
+    )
     def delete(self, request: Request, task_id: int) -> Response:
         container.delete_task().execute(actor_id=current_user_id(request), task_id=task_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
