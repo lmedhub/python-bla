@@ -9,7 +9,7 @@ import { AppRoutes } from "../routes/AppRoutes";
 /** Shows the current URL, so tests can check that filters and page live in it. */
 function CurrentUrl() {
   const location = useLocation();
-  return <output data-testid="current-url">{location.pathname + location.search}</output>;
+  return <div data-testid="current-url">{location.pathname + location.search}</div>;
 }
 
 /** The whole app at `url`, as the browser would load it, against the MSW handlers. */

@@ -1,14 +1,23 @@
 import { isTaskStatus, type TaskListQuery, type TaskStatus } from "../../api/types";
 
-/** The list's filters and page. They live in the URL, so reload and share keep them. */
+/**
+ * The list's filters and page. They live in the URL, so reload and share keep them.
+ * `undefined` means "not filtered"; it is allowed explicitly so a filter can be cleared.
+ */
 export interface TaskFilters {
-  status?: TaskStatus;
+  status?: TaskStatus | undefined;
   /** A user id, or "me". */
-  assignee?: string;
-  dueAfter?: string;
-  dueBefore?: string;
-  overdue?: boolean;
+  assignee?: string | undefined;
+  dueAfter?: string | undefined;
+  dueBefore?: string | undefined;
+  overdue?: boolean | undefined;
   page: number;
+}
+
+export function hasFilters(filters: TaskFilters): boolean {
+  return [filters.status, filters.assignee, filters.dueAfter, filters.dueBefore, filters.overdue].some(
+    (value) => value !== undefined,
+  );
 }
 
 export const PAGE_SIZE = 10;

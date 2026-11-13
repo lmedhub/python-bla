@@ -1,10 +1,16 @@
 import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { alice } from "../../test/data";
-import { errorBody, signedInAs, signedOut } from "../../test/handlers";
+import { errorBody, signedInAs, signedOut, taskListReturns, usersAre } from "../../test/handlers";
 import { renderApp } from "../../test/render";
 import { server } from "../../test/server";
+
+beforeEach(() => {
+  // The task list is where a signed-in user lands.
+  taskListReturns([]);
+  usersAre([alice]);
+});
 
 function loginAnswers(status: number, body: object, headers: Record<string, string> = {}) {
   server.use(http.post("/api/v1/auth/login", () => HttpResponse.json(body, { status, headers })));

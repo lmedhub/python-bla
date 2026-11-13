@@ -68,6 +68,8 @@ describe("the task list", () => {
   });
 
   it("shows an error with a way to try again", async () => {
+    taskListReturns([makeTask({ title: "Pay invoices" })]);
+    // Added last, so MSW tries it first: the first request fails, the retry succeeds.
     server.use(
       http.get(
         "/api/v1/tasks",
@@ -76,7 +78,6 @@ describe("the task list", () => {
         { once: true },
       ),
     );
-    taskListReturns([makeTask({ title: "Pay invoices" })]);
     const { user } = renderApp("/tasks");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("A server error occurred.");
