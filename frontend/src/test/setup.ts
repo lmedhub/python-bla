@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
+import { forgetSession } from "../api/session";
 import { server } from "./server";
 
 // jsdom does not implement <dialog>'s modal methods. The browser provides the real behavior
@@ -19,6 +20,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  // The token lives in module memory; no test may inherit another's session.
+  forgetSession();
   vi.spyOn(console, "error");
   vi.spyOn(console, "warn");
 });
