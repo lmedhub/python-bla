@@ -20,6 +20,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.core.interfaces.throttling import LoginThrottle
 from apps.users.interfaces import container
 from apps.users.interfaces.serializers import LoginSerializer, SessionSerializer
 
@@ -42,6 +43,8 @@ class _CredentialView(APIView):
 
 
 class LoginView(_CredentialView):
+    throttle_classes = (LoginThrottle,)
+
     def post(self, request: Request) -> Response:
         credentials = LoginSerializer(data=request.data)
         credentials.is_valid(raise_exception=True)

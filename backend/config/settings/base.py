@@ -36,7 +36,7 @@ TIME_ZONE = "UTC"
 USE_I18N = False
 USE_TZ = True
 
-REST_FRAMEWORK = {
+REST_FRAMEWORK: dict[str, Any] = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
