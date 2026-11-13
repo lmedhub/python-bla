@@ -11,8 +11,8 @@ decision taken after HANDOFF was written.
 | 1 | Domain + application, test-driven, no Django | done (PR #2) |
 | 2 | Infrastructure: custom User first, Task model, migrations, repositories | done (PR #3) |
 | 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | done (PR #4) |
-| 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | in review (branch `phase-4`) |
-| 5 | Frontend | not started |
+| 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | done (PR #5) |
+| 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | in review (branch `phase-5`) |
 | 6 | nginx + frontend image, seed, full CI, README, architecture doc | not started |
 | 7 | Hardening: EXPLAIN, security review, console check, clean clone | not started |
 
@@ -73,6 +73,16 @@ decision taken after HANDOFF was written.
 | D51 | Backend containers use `dns_opt: [timeout:1, attempts:1]`: with Redis stopped, its name lookup took 8 s and bypassed the socket timeouts | ADR 0005 |
 | D52 | gunicorn runs with `--no-control-socket` (new in gunicorn 25+, writes under `$HOME`, which the app user has not got; Docker manages the process) | `backend/docker/start-api.sh` |
 | D53 | Base image `python:3.12.16-slim-trixie` already has time zone data (checked `America/Sao_Paulo`), so no `tzdata` package. uv `0.13.7` image in the build stage | `backend/Dockerfile` |
+| D54 | Frontend versions pinned exactly. **TypeScript 5.9.3, not 7.0**: typescript-eslint and openapi-typescript do not support 7 yet | ADR 0013 |
+| D55 | `frontend/.npmrc` pins the public npm registry: the user-level `~/.npmrc` points at a private work registry, whose URLs would land in `package-lock.json` | ADR 0013 |
+| D56 | MSW for API fakes in tests (not in HANDOFF; approved for Phase 5). Tests fail on any console warning or error and on unexpected requests | ADR 0013 |
+| D57 | Create and edit are pages (`/tasks/new`, `/tasks/:id/edit`); delete confirmation is a native `<dialog>` | ADR 0013 |
+| D58 | CSS Modules plus one global stylesheet; no UI kit | ADR 0013 |
+| D59 | No frontend coverage gate (HANDOFF does not ask for one; avoids another dependency) | — |
+| D60 | One refresh in flight at a time, shared by every caller: refresh tokens rotate, so parallel refreshes would sign the user out | ADR 0013 |
+| D61 | The status toggle sends no `version`; the edit form does | ADR 0013 |
+| D62 | Dates are formatted in the browser's language (`navigator.language`), not the OS default | `src/lib/dates.ts` |
+| D63 | Makefile: `lint`, `test`, `schema` cover both sides; `lint-backend`, `test-frontend`, `openapi`, `types` and so on cover one. CI's backend job uses the backend-only targets | `Makefile` |
 
 ## Known limits (so far)
 
@@ -92,10 +102,20 @@ decision taken after HANDOFF was written.
   after a Redis outage ends.
 - Docker's scanner reports 2 high-severity vulnerabilities in the `python:3.12.16-slim-trixie`
   base image (Phase 7 security review).
+- `npm audit` reports a moderate advisory in `minimatch` (GHSA-g3hv-75wg-m249), reached only through
+  ESLint; `npm audit --omit=dev` is clean.
+- jsdom has no `<dialog>.showModal()`: tests stub it; focus and Esc are checked in a real browser.
+- On Windows, Vitest must run from an upper-case drive path (README).
 - `nulls_last=True` in the list order cannot be tested on Postgres, which already sorts NULLs last
   for ascending order (an "equivalent mutant"). It is kept for intent and portability.
 
 ## Open questions
+
+- **The 401 on a signed-out page load.** The app calls `POST /auth/refresh` once at startup to
+  restore a session. With no session it answers 401, and browsers print every 4xx response in the
+  console. It is the only console line in the browser check. Options: (a) refresh without any
+  cookie answers 204 "no session" (an expired or tampered cookie stays 401); (b) the frontend keeps
+  a "had a session" flag in `localStorage` and skips the call without it; (c) accept and document.
 
 - **Refresh cookie is `Secure`:** a browser on plain `http://` other than localhost (and Safari
   even on localhost) will not send it. Phase 6 makes `REFRESH_COOKIE_SECURE` an env setting.

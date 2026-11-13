@@ -3,9 +3,8 @@
 A task manager API (Django 6.1 + DRF + PostgreSQL + Celery/Redis) with a React frontend,
 built as a technical interview exercise.
 
-**Status:** Phase 4 (backend done: API, background email with Celery, Docker images for the
-backend). See [PLAN.md](PLAN.md). The frontend, demo data, full setup guide and architecture
-summary come in Phases 5 and 6.
+**Status:** Phase 5 (backend and React frontend done). See [PLAN.md](PLAN.md). The nginx image
+for the frontend, demo data, full setup guide and architecture summary come in Phase 6.
 
 ## Run the backend with Docker
 
@@ -37,9 +36,12 @@ docker compose up -d db redis
 Linux / macOS:
 
 ```sh
-make lint    # ruff, ruff format, mypy --strict, import-linter, missing migrations
-make test    # pytest with a 90% coverage gate
+make lint    # backend: ruff, ruff format, mypy --strict, import-linter, missing migrations;
+             # frontend: eslint, tsc
+make test    # pytest with a 90% coverage gate, then vitest
 ```
+
+`make lint-backend`, `make test-frontend` and so on run one side only.
 
 Windows (same commands, without make):
 
@@ -67,6 +69,29 @@ the worker needs `--pool solo`, because Celery's default pool does not run on Wi
 uv run --env-file ../.env celery -A config.celery worker --loglevel info --pool solo
 uv run --env-file ../.env celery -A config.celery beat --loglevel info
 ```
+
+## Frontend
+
+Needs Node 22.22 or later. `frontend/.npmrc` pins the public npm registry, whatever your
+user-level npm configuration says.
+
+```sh
+cd frontend
+npm ci
+npm run dev        # http://localhost:5173, proxies /api to the backend on :8000
+npm test           # Vitest + Testing Library + MSW
+npm run lint       # ESLint (typescript-eslint strict, React hooks)
+npm run typecheck  # tsc
+npm run build
+```
+
+The backend must be running on port 8000 (`docker compose up -d`, or `runserver`).
+`npm run generate:api` regenerates `src/api/generated/schema.d.ts` from `openapi.yaml`
+(`make schema` regenerates both).
+
+Windows: run the frontend commands from a path with an upper-case drive letter
+(`C:\...`). Some editors start shells in `c:\...`, and Vitest then loads its own modules twice
+and fails with "Vitest failed to find the runner".
 
 ## API
 

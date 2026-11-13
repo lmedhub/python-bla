@@ -59,6 +59,10 @@ Working rules for the whole project:
 - Phase 4: the plan offered two options for the worker and beat containers. The user answered
   `1. alternative`: build the backend image now instead of in Phase 6. The agent posted the extra
   scope (Dockerfile, compose services, CI build job) and waited for `go` again.
+- Between phases: `npm token?` The agent diagnosed the E401 as an expired private work registry
+  in the user-level `~/.npmrc`, and proposed a project `.npmrc` instead of refreshing the token.
+- Phase 5: `go` on a plan with five questions (MSW, pages, browser check, CSS Modules, coverage
+  gate); every recommended default was taken.
 
 ## 2. Sample output
 
@@ -106,6 +110,9 @@ def health_report() -> HealthReport:
 | Real broker (Phase 4) | `CeleryNotifier` tests publish to the test Redis and decode the queued message (job name, IDs-only args); rollback leaves the queue empty |
 | Redis down (Phase 4) | Automated: a broker on a closed port, both for the notifier and for a real committing request (`transaction=True`): 201, task saved, error logged, under 5 s. By hand: Redis container stopped under the full stack (see mistake 31) |
 | Manual run (Phase 4) | `docker compose up --build`: API healthy as a non-root user (uid 10001); assign a task → worker log "sent" → email in Mailpit; beat with a per-minute cron → digest in Mailpit; Redis stopped → 201 and health `degraded`; Redis back → worker reconnects and sends |
+| Real browser (Phase 5) | A throwaway Playwright script (scratchpad, not a project dependency) drove the installed Edge through sign in, filter, create, edit, complete, delete (Esc and focus on the dialog), reload, a 320 px viewport, Tab order and sign out, against both the dev server and the production build. All 13 steps passed. Console on the production build: one line, the signed-out refresh 401 (open question in PLAN) |
+| Frontend tests (Phase 5) | Every test fails on a `console.error` / `console.warn` or an unexpected request; the suite runs in `America/Sao_Paulo` to catch date-only bugs |
+| Mutation check (Phase 5) | Replacing the shared refresh (`??=`) with a fresh one per caller fails exactly the "refreshed only once for requests that fail together" test |
 | TDD note (Phase 4) | The Redis-down API test passed already in its red commit, because it uses `CeleryNotifier`, finished one slice earlier. It is a guard, not a driver |
 
 ## 4. Mistakes log
@@ -148,6 +155,17 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 32 | 4 | The plan said a failed publish "is logged", but Django's default logging prints `django.*` errors only when `DEBUG` is on, and the containers run with it off | Self-review of Django's `DEFAULT_LOGGING` before the Docker run, then confirmed in the container log | `LOGGING` sends every logger to stdout |
 | 33 | 4 | gunicorn 27 opens a control socket under `$HOME`; the non-root user has no home, so it logged `Permission denied` at start | `docker compose logs api` | `--no-control-socket` (Docker manages the process) |
 | 34 | 4 | Removed `LoggingNotifier` and its unit test, but missed a Phase 3 API test that asserted its log line | Full test run | Removed it; the new API test checks the queued job instead |
+| 35 | 5 | Wrote MSW's `onUnhandledRequest` option from memory; MSW 3 renamed it `onUnhandledFrame` | tsc | Read MSW 3's type definitions, used the new name |
+| 36 | 5 | First test config used Vitest's `onConsoleLog` to "fail on console warnings"; it only hides them | Self-review of what the option does, before the first run | Spy on `console.error` / `console.warn` and assert in `afterEach` that neither was called |
+| 37 | 5 | MSW tries handlers in the order given to `server.use`. Three times I listed an always-matching handler before a `{ once: true }` one. Once a test passed for the wrong reason (no session ever started) | An unexpected pass in a red run; a failing green run; self-review | Put the one-time handler first, with a comment, and assert the intermediate state (the user's name shows before the login page) |
+| 38 | 5 | The test's URL probe was an `<output>` element, which has the implicit role `status`, clashing with "Loading…" | Testing Library: multiple elements with role "status" | A plain `<div>` |
+| 39 | 5 | Dates used the runtime's default locale, which is the operating system's (Portuguese here): output differed between machines | A test expecting "Nov 20, 2026" | Pass `navigator.language` explicitly |
+| 40 | 5 | A form test typed a past due date to get a server error, but the date input's `min` blocks the submit first (jsdom enforces it like a browser) | Failing test | Use input the browser accepts and the server rejects |
+| 41 | 5 | `autoFocus` on the dialog's Cancel button ran while the `<dialog>` was still closed, so nothing got focus | The focus test | Focus Cancel explicitly right after `showModal()` |
+| 42 | 5 | Wrote a status filter handler that parsed a fake URL to validate one value: too clever to explain in one sentence | Self-review | An `isTaskStatus` type guard |
+| 43 | 5 | Restored a mutation with PowerShell `Set-Content`, which rejected its arguments, so the mutation stayed in the file | The error message, then `grep` of the file | Restored with `sed`, checked the line, encoding and line endings, re-ran 30/30. Same lesson as mistake 21: verify the restore |
+| 44 | 5 | Added frontend commands to `make lint` / `make test`, which CI's backend job runs without Node dependencies | Self-review before committing | Split targets (`lint-backend`, `test-frontend`, ...); CI's backend job calls the backend ones |
+| 45 | 5 | No favicon: the browser's automatic `/favicon.ico` request logged a 404 | Browser check | An SVG favicon |
 
 ## 5. Findings that changed the plan
 
@@ -190,6 +208,20 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 - Phase 4: the draft plan wrapped jobs in `transaction.atomic`. Writing the use case showed it
   is not needed: "check, send, record" never needs two statements to commit together, and SMTP
   cannot join a database transaction anyway (ADR 0012).
+- Phase 5: TypeScript 7 is out, but typescript-eslint (below 6.1) and openapi-typescript (5.x)
+  do not support it, so the frontend uses 5.9.3. Found by reading peer dependencies before installing.
+- Phase 5: the user-level `~/.npmrc` points every npm command at a private work registry. A
+  project `.npmrc` keeps those URLs out of `package-lock.json` (checked: 328 entries, all
+  `registry.npmjs.org`).
+- Phase 5: rotating refresh tokens plus React StrictMode's double effects would sign the user
+  out at startup; a single shared refresh avoids it (ADR 0013).
+- Phase 5: React 19.3's types deprecate `FormEvent` (`SubmitEvent` for forms), flagged by
+  typescript-eslint's `no-deprecated`.
+- Phase 5: on Windows, Vitest fails with "failed to find the runner" when the shell's drive letter
+  is lower case (`c:\`), because modules load twice. Running from `C:\` works (README).
+- Phase 5: jsdom has no `<dialog>.showModal()`.
+- Phase 5: browsers print every 4xx response in the console, so an expected 401 still shows as an
+  error line (PLAN open question).
 - Phase 4: Celery's `send_task` by name keeps the layers clean. Infrastructure publishes a name;
   only the worker imports the job module.
 
@@ -232,6 +264,19 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 | Overdue task with no assignee | Nobody is emailed | `test_overdue_digest.py` |
 | Redis down when assigning | 201, task saved, error logged, under 5 s | `test_assignment_notification_api.py` |
 | Bad `OVERDUE_DIGEST_CRON` | Startup fails with the variable's name | `test_env.py`, `test_settings.py` |
+| Due date shown west of UTC | `"2026-11-12"` shows as 12 Nov in Sao Paulo, not 11 Nov | `dates.test.ts`, suite runs in `America/Sao_Paulo` |
+| Hand-edited URL (`status=urgent`, `page=-2`) | Ignored, never sent to the API | `filters.test.ts` |
+| Filter changed on page 3 | Back to page 1 | `TaskListPage.test.tsx` |
+| Shared link past the last page | "This page is empty" with a way back | `TaskListPage.test.tsx` |
+| Parallel 401s | One refresh, then each request retried once | `session.test.ts` |
+| Refresh fails mid-session | Login page; cached data cleared | `session.test.ts`, `TaskListPage.test.tsx` |
+| Logout when the server is unreachable | Signed out locally anyway | `session.test.ts` |
+| Proxy error page (HTML, not JSON) | Generic message with the status, no crash | `errors.test.ts` |
+| 429 on login | "Try again in N seconds" from `Retry-After` | `auth.test.tsx` |
+| Edit after someone else's change | 409 → message, form reloaded with their version | `TaskFormPage.test.tsx` |
+| Non-creator opens the edit URL | Explanation, no form | `TaskFormPage.test.tsx` |
+| Assignee / stranger in the list | Edit and Delete disabled; status only for the assignee | `TaskActions.test.tsx` |
+| Delete | Confirmation, focus on Cancel; failure keeps the dialog open with the reason | `TaskActions.test.tsx` |
 | Bad `X-Timezone` | Unknown, path-like (`../../etc/passwd`), offset (`UTC+3`), blank or folder (`America`) names give 400 on the header, never 500 | `test_requests.py` |
 
 ## 7. Performance and idiomatic quality
@@ -246,5 +291,7 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 - **Locking**: optimistic, with a single conditional `UPDATE`, so reads never block (ADR 0010).
 - **Digest queries**: overdue tasks in 1 query, every recipient in 1 query (`pk__in`), both asserted
   with `django_assert_num_queries`. The sent-log check is one small indexed query per assignee.
+- **Frontend bundle**: 319 kB JavaScript, 100 kB gzipped (React, React Router, TanStack Query,
+  openapi-fetch and the app). The list keeps the previous page on screen while the next loads.
 - **API list**: the number of queries is the same for 3 or 15 tasks (compared with
   `CaptureQueriesContext`): the JWT user lookup, count, page, and the request savepoints.
