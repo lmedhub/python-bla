@@ -1,6 +1,6 @@
 # 0003. JWT session design
 
-- Status: accepted (implemented in Phase 3 and 5)
+- Status: accepted. Backend done in Phase 3; the frontend part comes in Phase 5
 - Date: 2026-11-11
 
 ## Context
@@ -22,6 +22,16 @@ nginx serves the frontend and the API from the same origin.
 - **One in-flight refresh** in the frontend. Rotation makes a refresh token single-use,
   so two parallel refreshes (two 401s at once, or React StrictMode running the
   "restore session" effect twice) would log the user out. All callers wait on one promise.
+
+## Implementation notes (Phase 3)
+
+- Refresh returns `{access, user}`, like login (ADR 0011).
+- simplejwt 5.5.1 raises `User.DoesNotExist` (a 500) when the refresh token belongs to a deleted
+  user. `RefreshView` turns it into a 401, and a test covers it.
+- With no authenticators, DRF turns 401 into 403. The login, refresh and logout views return a
+  `Bearer` challenge themselves to keep 401.
+- simplejwt annotates `Token(token=...)` as `Token | None` but takes the encoded string. There is one
+  targeted `type: ignore[arg-type]` with a comment.
 
 ## Consequences
 

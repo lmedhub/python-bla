@@ -1,6 +1,6 @@
 # 0005. Degrade, don't fail, when Redis is down
 
-- Status: accepted (health check done in Phase 0; the rest in Phases 3 and 4)
+- Status: accepted. Health check in Phase 0; throttles in Phase 3; notifications in Phase 4
 - Date: 2026-11-11
 
 ## Context
