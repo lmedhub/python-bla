@@ -130,3 +130,16 @@ class TestDjangoHandlers:
         response = not_found_view(RequestFactory().get("/x"), exception)
 
         assert json.loads(response.content)["detail"] == "Not found."
+
+
+class TestUnusualShapes:
+    def test_a_field_error_given_as_a_single_string_becomes_a_list(self):
+        response = handle(exceptions.ValidationError({"title": "Too long."}))
+
+        assert response.data["fields"] == {"title": ["Too long."]}
+
+    def test_an_error_body_without_detail_still_gets_a_message(self):
+        response = handle(exceptions.APIException({"unexpected": "shape"}))
+
+        assert response.status_code == 500
+        assert response.data == {"code": "error", "detail": "Request failed.", "fields": {}}
