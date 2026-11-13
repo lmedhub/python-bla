@@ -125,7 +125,8 @@ def test_a_bad_digest_schedule_stops_startup(environment):
 def test_email_goes_to_the_configured_smtp_server(environment):
     prod = _load("config.settings.prod")
 
-    assert (prod.EMAIL_HOST, prod.EMAIL_PORT) == ("mailpit", 1025)
+    options = prod.MAILERS["default"]["OPTIONS"]
+    assert (options["host"], options["port"]) == ("mailpit", 1025)
 
 
 def test_email_host_is_required(environment):

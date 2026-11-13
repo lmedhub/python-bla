@@ -42,4 +42,12 @@ def csv(name: str) -> list[str]:
 
 
 def cron(name: str, default: str) -> crontab:
-    raise NotImplementedError
+    """A standard 5-field cron expression ("minute hour day month weekday"), checked at startup."""
+    # from_string splits on single spaces, so collapse repeated ones first.
+    value = " ".join(os.environ.get(name, default).split())
+    try:
+        return crontab.from_string(value)
+    except ValueError as error:
+        raise ImproperlyConfigured(
+            f'Environment variable {name} must be a 5-field cron expression, like "0 8 * * *".'
+        ) from error

@@ -21,5 +21,8 @@ DATABASES = postgres(
 # Database 1 keeps test keys away from the development data in database 0.
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/1")
 CACHES = redis_cache(REDIS_URL)
+CELERY_BROKER_URL = REDIS_URL
+# Django's test setup swaps every mailer for the in-memory outbox (django.core.mail.outbox).
+MAILERS = smtp_mailer(host="localhost", port=1025)
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
