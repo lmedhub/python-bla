@@ -1,5 +1,9 @@
+from datetime import tzinfo
+
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.request import Request
+
+TIME_ZONE_HEADER = "X-Timezone"
 
 
 def current_user_id(request: Request) -> int:
@@ -12,3 +16,7 @@ def current_user_id(request: Request) -> int:
     if user_id is None:
         raise NotAuthenticated()
     return int(user_id)
+
+
+def request_time_zone(request: Request) -> tzinfo:
+    raise NotImplementedError

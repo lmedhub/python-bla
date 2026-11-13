@@ -105,3 +105,11 @@ def test_swagger_ui_and_redoc_load_pinned_assets(api_client):
     assert "swagger-ui-dist@5.34.0" in swagger
     assert "redoc@2.5.4" in redoc
     assert "@latest" not in swagger + redoc
+
+
+def test_task_endpoints_document_the_time_zone_header(schema):
+    for path, method, operation in operations(schema):
+        if not path.startswith("/api/v1/tasks") or method == "delete":
+            continue
+        headers = {p["name"] for p in operation.get("parameters", []) if p["in"] == "header"}
+        assert "X-Timezone" in headers, (path, method)
