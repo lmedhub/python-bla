@@ -1,0 +1,703 @@
+openapi: 3.0.3
+info:
+  title: Task Manager API
+  version: 1.0.0
+  description: Tasks with assignment, status and due dates. Sign in with POST /auth/login,
+    then use "Authorize" with the access token. Every error has the shape {code, detail,
+    fields}.
+paths:
+  /api/v1/auth/login:
+    post:
+      operationId: auth_login_create
+      description: Returns an access token and the user. Sets the refresh token as
+        an HttpOnly cookie. Limited to 5 attempts a minute per client IP.
+      summary: Sign in
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input. `fields` says which field and why.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+  /api/v1/auth/logout:
+    post:
+      operationId: auth_logout_create
+      description: Blacklists the refresh cookie and clears it. Safe to call twice.
+      summary: Sign out
+      tags:
+      - auth
+      responses:
+        '204':
+          description: Signed out.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+  /api/v1/auth/refresh:
+    post:
+      operationId: auth_refresh_create
+      description: Uses and rotates the refresh cookie. Answers like login, so a page
+        reload can restore the session with one call.
+      summary: Get a new access token
+      tags:
+      - auth
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+  /api/v1/health:
+    get:
+      operationId: health_retrieve
+      summary: Liveness and readiness
+      tags:
+      - health
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: '"ok", or "degraded" without Redis.'
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: The database is down.
+  /api/v1/tasks:
+    get:
+      operationId: tasks_list
+      description: Ordered by due date (no date last), then id. Filters combine with
+        AND.
+      summary: List tasks
+      parameters:
+      - in: query
+        name: assignee
+        schema:
+          type: string
+          minLength: 1
+        description: A user id, or "me".
+      - in: query
+        name: due_after
+        schema:
+          type: string
+          format: date
+        description: Inclusive.
+      - in: query
+        name: due_before
+        schema:
+          type: string
+          format: date
+        description: Inclusive.
+      - in: query
+        name: overdue
+        schema:
+          type: boolean
+          nullable: true
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 10
+      - in: query
+        name: status
+        schema:
+          enum:
+          - todo
+          - in_progress
+          - done
+          type: string
+          minLength: 1
+        description: |-
+          * `todo` - todo
+          * `in_progress` - in_progress
+          * `done` - done
+      tags:
+      - tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTaskList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input. `fields` says which field and why.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+    post:
+      operationId: tasks_create
+      description: The caller becomes the creator. The due date may not be in the
+        past.
+      summary: Create a task
+      tags:
+      - tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input. `fields` says which field and why.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+  /api/v1/tasks/{task_id}:
+    get:
+      operationId: tasks_retrieve
+      summary: Get a task
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+    patch:
+      operationId: tasks_partial_update
+      description: Only the fields sent change. The creator may change anything; the
+        assignee only the status. Send `version` to get a 409 instead of overwriting
+        a newer change.
+      summary: Change a task
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTaskUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input. `fields` says which field and why.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Signed in, but not allowed to do this.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Changed by someone else since you read it. Reload and try again.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+    delete:
+      operationId: tasks_destroy
+      description: Only the creator may delete.
+      summary: Delete a task
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - tasks
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Signed in, but not allowed to do this.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+  /api/v1/users:
+    get:
+      operationId: users_list
+      description: 'Active users for the assignee picker. Not paginated: one team
+        fits in one response.'
+      summary: List active users
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+  /api/v1/users/me:
+    get:
+      operationId: users_me_retrieve
+      summary: The signed-in user
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Missing, expired or invalid credentials.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Too many requests. See the Retry-After header.
+components:
+  schemas:
+    CheckStatus:
+      enum:
+      - up
+      - down
+      type: string
+      description: |-
+        * `up` - up
+        * `down` - down
+    Error:
+      type: object
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        detail:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: Field name to messages. Empty unless code is invalid_input.
+      required:
+      - code
+      - detail
+      - fields
+    ErrorCode:
+      enum:
+      - conflict
+      - error
+      - invalid_input
+      - method_not_allowed
+      - not_acceptable
+      - not_authenticated
+      - not_found
+      - parse_error
+      - permission_denied
+      - server_error
+      - throttled
+      - unsupported_media_type
+      type: string
+      description: |-
+        * `conflict` - conflict
+        * `error` - error
+        * `invalid_input` - invalid_input
+        * `method_not_allowed` - method_not_allowed
+        * `not_acceptable` - not_acceptable
+        * `not_authenticated` - not_authenticated
+        * `not_found` - not_found
+        * `parse_error` - parse_error
+        * `permission_denied` - permission_denied
+        * `server_error` - server_error
+        * `throttled` - throttled
+        * `unsupported_media_type` - unsupported_media_type
+    Health:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        checks:
+          $ref: '#/components/schemas/HealthChecks'
+      required:
+      - checks
+      - status
+    HealthChecks:
+      type: object
+      properties:
+        database:
+          $ref: '#/components/schemas/CheckStatus'
+        redis:
+          $ref: '#/components/schemas/CheckStatus'
+      required:
+      - database
+      - redis
+    HealthStatus:
+      enum:
+      - ok
+      - degraded
+      - down
+      type: string
+      description: |-
+        * `ok` - ok
+        * `degraded` - degraded
+        * `down` - down
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    PaginatedTaskList:
+      type: object
+      description: Documents the list envelope. Links are relative, so they work behind
+        any proxy.
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+      required:
+      - count
+      - next
+      - previous
+      - results
+    PatchedTaskUpdateRequest:
+      type: object
+      description: 'PATCH: every field is optional, and only the fields sent are changed.'
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        assignee:
+          type: integer
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+          description: The version you last read. If the task changed since, the update
+            is a 409.
+    Session:
+      type: object
+      description: Login and refresh answer with the same shape, so the frontend restores
+        state one way.
+      properties:
+        access:
+          type: string
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+      required:
+      - access
+      - user
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TaskStatus'
+          readOnly: true
+        due_date:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        created_by:
+          type: integer
+          readOnly: true
+        assignee:
+          type: integer
+          readOnly: true
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        version:
+          type: integer
+          readOnly: true
+        is_overdue:
+          type: boolean
+          readOnly: true
+      required:
+      - assignee
+      - completed_at
+      - created_at
+      - created_by
+      - description
+      - due_date
+      - id
+      - is_overdue
+      - status
+      - title
+      - updated_at
+      - version
+    TaskCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          default: ''
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        assignee:
+          type: integer
+          nullable: true
+      required:
+      - title
+    TaskStatus:
+      enum:
+      - todo
+      - in_progress
+      - done
+      type: string
+      description: |-
+        * `todo` - todo
+        * `in_progress` - in_progress
+        * `done` - done
+    User:
+      type: object
+      description: 'Reads a domain User. Only what other people may see: no is_active,
+        no password data.'
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+      required:
+      - email
+      - id
+      - name
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

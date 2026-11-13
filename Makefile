@@ -20,7 +20,7 @@ lint:
 	$(BACKEND) uv run python manage.py makemigrations --check --dry-run --settings=config.settings.test
 
 schema:
-	@echo "schema: added in Phase 3" && exit 1
+	$(BACKEND) uv run python manage.py spectacular --validate --fail-on-warn --file ../openapi.yaml --settings=config.settings.test
 
 seed:
 	@echo "seed: added in Phase 6" && exit 1

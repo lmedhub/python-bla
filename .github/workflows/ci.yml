@@ -46,3 +46,10 @@ jobs:
 
       - name: Tests with coverage gate
         run: make test
+
+      # openapi.yaml is the contract the frontend types are generated from. If a serializer
+      # changes without regenerating it, this fails.
+      - name: OpenAPI schema is up to date
+        run: |
+          make schema
+          git diff --exit-code openapi.yaml
