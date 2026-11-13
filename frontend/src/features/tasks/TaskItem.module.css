@@ -42,3 +42,15 @@
 .details dd {
   margin: 0;
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.error {
+  margin: 0.5rem 0 0;
+  color: var(--danger);
+}
