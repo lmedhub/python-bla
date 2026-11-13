@@ -3,7 +3,9 @@ import pytest
 from apps.tasks.tests.fakes import (
     FakeUserDirectory,
     FixedClock,
+    InMemorySentLog,
     InMemoryTaskRepository,
+    OutboxMailer,
     RecordingNotifier,
 )
 
@@ -28,3 +30,13 @@ def notifier() -> RecordingNotifier:
 @pytest.fixture
 def clock() -> FixedClock:
     return FixedClock(NOW)
+
+
+@pytest.fixture
+def mailer() -> OutboxMailer:
+    return OutboxMailer()
+
+
+@pytest.fixture
+def sent_log() -> InMemorySentLog:
+    return InMemorySentLog()

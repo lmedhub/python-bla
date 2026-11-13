@@ -48,6 +48,9 @@ class DjangoTaskRepository:
         items = [_to_entity(row) for row in rows[page.offset : page.offset + page.page_size]]
         return Page(items=items, total=total, request=page)
 
+    def list_overdue(self, today: date) -> list[Task]:
+        raise NotImplementedError
+
 
 def _conditions(task_filter: TaskFilter, today: date) -> Q:
     condition = Q()

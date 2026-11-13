@@ -1,9 +1,11 @@
 """In-memory fakes of the tasks ports. Typed, so mypy checks they match the Protocols."""
 
-from dataclasses import replace
+from collections.abc import Collection
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 
 from apps.core.domain.errors import ConflictError
+from apps.tasks.application.ports import Recipient
 from apps.tasks.application.queries import Page, PageRequest, TaskFilter
 from apps.tasks.domain.task import Task
 
@@ -56,6 +58,11 @@ class InMemoryTaskRepository:
         self.find_calls.append((task_filter, page, today))
         return Page(items=[], total=0, request=page)
 
+    def list_overdue(self, today: date) -> list[Task]:
+        # The overdue rule itself is the domain's; the SQL version is tested against Postgres.
+        overdue = [replace(task) for task in self.rows.values() if task.is_overdue(today)]
+        return sorted(overdue, key=lambda task: (task.due_date, task.id))
+
 
 class FakeUserDirectory:
     def __init__(self, active_user_ids: set[int]) -> None:
@@ -64,6 +71,17 @@ class FakeUserDirectory:
     def is_active_user(self, user_id: int) -> bool:
         return user_id in self.active_user_ids
 
+    def active_recipients(self, user_ids: Collection[int]) -> dict[int, Recipient]:
+        return {
+            user_id: recipient_for(user_id)
+            for user_id in user_ids
+            if user_id in self.active_user_ids
+        }
+
+
+def recipient_for(user_id: int) -> Recipient:
+    return Recipient(email=f"user{user_id}@example.com", name=f"User {user_id}")
+
 
 class RecordingNotifier:
     def __init__(self) -> None:
@@ -71,3 +89,36 @@ class RecordingNotifier:
 
     def task_assigned(self, task_id: int, assignee_id: int) -> None:
         self.assignments.append((task_id, assignee_id))
+
+
+@dataclass(frozen=True)
+class SentEmail:
+    to: str
+    subject: str
+    body: str
+
+
+class OutboxMailer:
+    def __init__(self) -> None:
+        self.outbox: list[SentEmail] = []
+
+    def send(self, *, to: str, subject: str, body: str) -> None:
+        self.outbox.append(SentEmail(to=to, subject=subject, body=body))
+
+
+class BrokenMailer:
+    """Fails like an unreachable SMTP server does (smtplib errors are OSErrors)."""
+
+    def send(self, *, to: str, subject: str, body: str) -> None:
+        raise ConnectionRefusedError("SMTP server is down")
+
+
+class InMemorySentLog:
+    def __init__(self) -> None:
+        self.keys: set[str] = set()
+
+    def was_sent(self, key: str) -> bool:
+        return key in self.keys
+
+    def record(self, key: str) -> None:
+        self.keys.add(key)
