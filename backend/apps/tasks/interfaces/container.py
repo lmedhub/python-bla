@@ -6,6 +6,10 @@ from apps.core.infrastructure.clock import SystemClock
 from apps.tasks.application.ports import Clock, Notifier
 from apps.tasks.application.use_cases import CreateTask, DeleteTask, GetTask, ListTasks, UpdateTask
 from apps.tasks.infrastructure.clock import ZonedClock
+
+# Job names, re-exported for jobs.py ("X as X" marks an intended re-export).
+from apps.tasks.infrastructure.notifications import ASSIGNMENT_JOB as ASSIGNMENT_JOB
+from apps.tasks.infrastructure.notifications import DIGEST_JOB as DIGEST_JOB
 from apps.tasks.infrastructure.notifications import LoggingNotifier
 from apps.tasks.infrastructure.repositories import DjangoTaskRepository
 from apps.tasks.infrastructure.user_directory import DjangoUserDirectory
