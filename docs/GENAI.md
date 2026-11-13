@@ -56,6 +56,9 @@ Working rules for the whole project:
   extra dev dependencies, Makefile for Linux/macOS/CI only, one branch and PR per phase,
   no AI attribution in commits, then `go`.
 - Per phase: `go. Phase N. Post your plan with the tests you will write first, then wait.`
+- Phase 4: the plan offered two options for the worker and beat containers. The user answered
+  `1. alternative`: build the backend image now instead of in Phase 6. The agent posted the extra
+  scope (Dockerfile, compose services, CI build job) and waited for `go` again.
 
 ## 2. Sample output
 
@@ -100,6 +103,10 @@ def health_report() -> HealthReport:
 | Types | `mypy --strict` with django-stubs and DRF stubs |
 | Behavior | Health endpoint checked by hand against the real stack, with Redis then Postgres stopped: `200 ok` → `200 degraded` → `503 down` → `200 ok` |
 | Makefile | `make -n` in a Linux container (no make on the Windows dev machine) |
+| Real broker (Phase 4) | `CeleryNotifier` tests publish to the test Redis and decode the queued message (job name, IDs-only args); rollback leaves the queue empty |
+| Redis down (Phase 4) | Automated: a broker on a closed port, both for the notifier and for a real committing request (`transaction=True`): 201, task saved, error logged, under 5 s. By hand: Redis container stopped under the full stack (see mistake 31) |
+| Manual run (Phase 4) | `docker compose up --build`: API healthy as a non-root user (uid 10001); assign a task → worker log "sent" → email in Mailpit; beat with a per-minute cron → digest in Mailpit; Redis stopped → 201 and health `degraded`; Redis back → worker reconnects and sends |
+| TDD note (Phase 4) | The Redis-down API test passed already in its red commit, because it uses `CeleryNotifier`, finished one slice earlier. It is a guard, not a driver |
 
 ## 4. Mistakes log
 
@@ -135,6 +142,12 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 26 | 3 | Two more shell heredocs with triple quotes failed to parse | bash syntax error | Wrote the edit scripts to files and ran them |
 | 27 | 3 | For the OpenAPI slice I ran red (6 failing) but did not commit the red state before adding annotations | Self-review of the commit list | Committed as one `feat:` commit and recorded it here, instead of faking a red commit |
 | 28 | 3 | My OpenAPI test collected every parameter of the list operation, so adding a header broke a test about query parameters | The test run after the time zone change | Filtered the test to `in == "query"`, which is what it meant |
+| 29 | 4 | Configured mail with `EMAIL_HOST`, `EMAIL_PORT` and `EMAIL_TIMEOUT`, from memory. Django 6.1 deprecates them for the new `MAILERS` setting | `filterwarnings = error` turned `RemovedInDjango2028Warning` into a failure on the first green run | Read Django's `MailersHandler` source, switched to `MAILERS` (`smtp_mailer()` helper) and adjusted the red test's assertion |
+| 30 | 4 | The red `CeleryNotifier` tests had no `django_db` mark; `on_commit` needs a database connection even when nothing is written | "Database access not allowed" in the green run | Added the mark, with a comment saying why |
+| 31 | 4 | The Redis-down plan relied on socket timeouts. In Docker, a stopped Redis container's name stops resolving, and that lookup took 8 s per attempt: `POST /tasks` took 16 s, health 8 s | Manual run against the real stack; the automated tests use `127.0.0.1`, which has no DNS step | `dns_opt: [timeout:1, attempts:1]` for the backend services: 2.1 s and 1.0 s, measured. Numbers in ADR 0005 |
+| 32 | 4 | The plan said a failed publish "is logged", but Django's default logging prints `django.*` errors only when `DEBUG` is on, and the containers run with it off | Self-review of Django's `DEFAULT_LOGGING` before the Docker run, then confirmed in the container log | `LOGGING` sends every logger to stdout |
+| 33 | 4 | gunicorn 27 opens a control socket under `$HOME`; the non-root user has no home, so it logged `Permission denied` at start | `docker compose logs api` | `--no-control-socket` (Docker manages the process) |
+| 34 | 4 | Removed `LoggingNotifier` and its unit test, but missed a Phase 3 API test that asserted its log line | Full test run | Removed it; the new API test checks the queued job instead |
 
 ## 5. Findings that changed the plan
 
@@ -169,6 +182,17 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
   `Clock` port, the fix was a per-request `ZonedClock` in infrastructure plus header parsing;
   no domain or use case code changed.
 
+- Phase 4: Django 6.1 replaces the `EMAIL_*` settings with `MAILERS` (mistake 29).
+- Phase 4: socket timeouts do not bound DNS lookups. Stopping a container in compose removes its
+  name, and the default resolver took 8 s to give up (mistake 31, ADR 0005).
+- Phase 4: the slim Python image already ships time zone data, which closes the Phase 6
+  carry-over about `tzdata`.
+- Phase 4: the draft plan wrapped jobs in `transaction.atomic`. Writing the use case showed it
+  is not needed: "check, send, record" never needs two statements to commit together, and SMTP
+  cannot join a database transaction anyway (ADR 0012).
+- Phase 4: Celery's `send_task` by name keeps the layers clean. Infrastructure publishes a name;
+  only the worker imports the job module.
+
 ## 6. Edge cases, auth and validation decisions
 
 See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008 (errors).
@@ -199,6 +223,15 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 | Redis down | Login and task list still 200; a warning is logged | `test_throttling.py` |
 | `overdue` not sent | No filtering (DRF's default would be `False`) | `test_task_list_api.py` |
 | Evening west of UTC | Due "today" accepted and not overdue for a caller sending `X-Timezone: America/Sao_Paulo` at 00:21 UTC; without the header UTC decides | `test_time_zone_api.py` |
+| Request rolls back after assigning | No email queued | `test_celery_notifier.py` |
+| Job runs after the task was deleted / reassigned / assignee deactivated | Skipped, logged with the reason | `test_notify_assignment.py` |
+| Same job delivered twice | One email (key = Celery message id) | `test_notify_assignment.py`, `test_jobs.py` |
+| Reassigned A → B → A | A gets two emails (two messages) | `test_notify_assignment.py` |
+| Mail server down | Job fails, nothing recorded, so the retry sends | `test_notify_assignment.py`, `test_jobs.py` |
+| Digest runs twice the same day | Second run sends nothing; next day sends again | `test_overdue_digest.py` |
+| Overdue task with no assignee | Nobody is emailed | `test_overdue_digest.py` |
+| Redis down when assigning | 201, task saved, error logged, under 5 s | `test_assignment_notification_api.py` |
+| Bad `OVERDUE_DIGEST_CRON` | Startup fails with the variable's name | `test_env.py`, `test_settings.py` |
 | Bad `X-Timezone` | Unknown, path-like (`../../etc/passwd`), offset (`UTC+3`), blank or folder (`America`) names give 400 on the header, never 500 | `test_requests.py` |
 
 ## 7. Performance and idiomatic quality
@@ -211,5 +244,7 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 - **Constraints in the database**, not only in Python: status, title and `completed_at` rules
   hold even for raw SQL or a future bulk script.
 - **Locking**: optimistic, with a single conditional `UPDATE`, so reads never block (ADR 0010).
+- **Digest queries**: overdue tasks in 1 query, every recipient in 1 query (`pk__in`), both asserted
+  with `django_assert_num_queries`. The sent-log check is one small indexed query per assignee.
 - **API list**: the number of queries is the same for 3 or 15 tasks (compared with
   `CaptureQueriesContext`): the JWT user lookup, count, page, and the request savepoints.

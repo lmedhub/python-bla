@@ -10,10 +10,10 @@ decision taken after HANDOFF was written.
 | 0 | Skeleton, uv, pre-commit, import-linter, CI skeleton, compose db/redis, health check, ADRs | done (PR #1) |
 | 1 | Domain + application, test-driven, no Django | done (PR #2) |
 | 2 | Infrastructure: custom User first, Task model, migrations, repositories | done (PR #3) |
-| 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | in review (branch `phase-3`) |
-| 4 | Celery: assignment notification, overdue digest, Redis-down behavior | not started |
+| 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | done (PR #4) |
+| 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | in review (branch `phase-4`) |
 | 5 | Frontend | not started |
-| 6 | Docker polish, seed, full CI, README, architecture doc | not started |
+| 6 | nginx + frontend image, seed, full CI, README, architecture doc | not started |
 | 7 | Hardening: EXPLAIN, security review, console check, clean clone | not started |
 
 ## Decisions and deviations
@@ -44,7 +44,7 @@ decision taken after HANDOFF was written.
 | D22 | A page past the end returns 200 with empty `results` and the real `count` | `application/queries.py` |
 | D23 | The assignee's permission is judged on fields that actually **change**, so re-sending an unchanged title with a status change is allowed. Permission is checked before validation | `domain/task.py`, ADR 0008 |
 | D24 | `GET /users` returns all active users without pagination (assignee picker) | Phase 3 |
-| D25 | The overdue digest use case is built in Phase 4, with Celery | Phase 4 |
+| D25 | The overdue digest use case is built in Phase 4, with Celery (done) | `tasks/application/notifications.py` |
 | D26 | Tasks checks assignees with `get_user_model()` in `tasks.infrastructure` (option b), so it never imports users | ADR 0009 |
 | D27 | Emails stored lowercase (domain `normalize_email` + DB check constraint); login lookup is case-insensitive | ADR 0009 |
 | D28 | **Optimistic locking** on task updates (`version` column, `UPDATE ... WHERE version = ?`, 409 `ConflictError`) plus optional `expected_version` in the use case. Replaces "last write wins" | ADR 0010 |
@@ -59,9 +59,20 @@ decision taken after HANDOFF was written.
 | D37 | Relative pagination links | ADR 0011 |
 | D38 | Swagger UI / ReDoc assets pinned (`swagger-ui-dist@5.34.0`, `redoc@2.5.4`), loaded from jsdelivr | ADR 0011 |
 | D39 | `NUM_PROXIES` read from the environment (1 behind nginx) | `config/settings/environment.py` |
-| D40 | Phase 3 notifier logs only (`LoggingNotifier`); Celery replaces it in Phase 4 | `tasks/interfaces/container.py` |
+| D40 | Phase 3 notifier logged only (`LoggingNotifier`); replaced by `CeleryNotifier` in Phase 4 and removed | `tasks/interfaces/container.py` |
 | D41 | The pagination envelope lives in `tasks/interfaces` (only tasks paginate), not `core` as D11 planned | `tasks/interfaces/pagination.py` |
 | D42 | **"Today" is the caller's date** from the `X-Timezone` header (IANA name, UTC if absent), via a per-request `ZonedClock`. Chosen by the user (option b) after the manual run showed the UTC problem | ADR 0007 (amended) |
+| D43 | **Backend image and the `api`, `worker`, `beat`, `mailpit` compose services moved from Phase 6 to Phase 4** (user's choice), plus a CI job that builds the image. nginx, the frontend image and seeding stay in Phase 6 | `backend/Dockerfile`, `docker-compose.yml` |
+| D44 | Mail is configured with Django 6.1's `MAILERS` setting; the `EMAIL_*` settings are deprecated in 6.1 | `config/settings/base.py` |
+| D45 | Celery jobs live in `tasks/interfaces/jobs.py` (entry points, like views). `CeleryNotifier` publishes by job name, so infrastructure never imports interfaces; the container re-exports the names | ADR 0012 |
+| D46 | Idempotent jobs through a `SentNotification` table with a unique key: "check, send, record", at-least-once (a crash can duplicate one email, never lose one) | ADR 0012 |
+| D47 | The worker does **not** wrap jobs in `transaction.atomic` (the Phase 4 draft said it would): check, send, record needs no multi-statement atomicity, and a transaction cannot include SMTP | ADR 0012 |
+| D48 | The overdue digest uses the UTC date (no caller, so no `X-Timezone`) | ADR 0012 |
+| D49 | mypy `disallow_untyped_decorators = false` for `apps.*.interfaces.jobs` only: Celery has no type hints. No `celery-types` stub package added | `pyproject.toml` |
+| D50 | `LOGGING` sends every logger to stdout at INFO, so Django's own errors show with `DEBUG` off | `config/settings/base.py` |
+| D51 | Backend containers use `dns_opt: [timeout:1, attempts:1]`: with Redis stopped, its name lookup took 8 s and bypassed the socket timeouts | ADR 0005 |
+| D52 | gunicorn runs with `--no-control-socket` (new in gunicorn 25+, writes under `$HOME`, which the app user has not got; Docker manages the process) | `backend/docker/start-api.sh` |
+| D53 | Base image `python:3.12.16-slim-trixie` already has time zone data (checked `America/Sao_Paulo`), so no `tzdata` package. uv `0.13.7` image in the build stage | `backend/Dockerfile` |
 
 ## Known limits (so far)
 
@@ -72,6 +83,15 @@ decision taken after HANDOFF was written.
 - Use cases report only the first failing business rule (title, then due date, then assignee).
 - `GET /users` is unpaginated; fine for a team, not for a large organisation.
 - Deleting a task is not version-checked (ADR 0010).
+- While Redis is down, assignment emails are lost (logged with task and user ids), and each request
+  that touches Redis is about 1 s slower per touch (DNS lookup limit). A transactional outbox would
+  remove the loss (ADR 0012).
+- A worker crash between sending and recording an email can send it twice (ADR 0012).
+- `SentNotification` grows by one row per email; no cleanup job yet.
+- Celery beat has no healthcheck; the worker's (`inspect ping`) shows "unhealthy" for up to 30 s
+  after a Redis outage ends.
+- Docker's scanner reports 2 high-severity vulnerabilities in the `python:3.12.16-slim-trixie`
+  base image (Phase 7 security review).
 - `nulls_last=True` in the list order cannot be tested on Postgres, which already sorts NULLs last
   for ascending order (an "equivalent mutant"). It is kept for intent and portability.
 
