@@ -14,3 +14,7 @@ export type TaskListQuery = NonNullable<paths["/api/v1/tasks"]["get"]["parameter
 export type TaskPage = Schemas["PaginatedTaskList"];
 
 export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "in_progress", "done"];
+
+export function isTaskStatus(value: unknown): value is TaskStatus {
+  return TASK_STATUSES.some((status) => status === value);
+}
