@@ -134,6 +134,7 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 25 | 3 | Passed `request.user.pk` (`int \| None`) to a use case expecting `int` | mypy `arg-type` | `current_user_id(request)` helper that raises 401 on `None`, with tests |
 | 26 | 3 | Two more shell heredocs with triple quotes failed to parse | bash syntax error | Wrote the edit scripts to files and ran them |
 | 27 | 3 | For the OpenAPI slice I ran red (6 failing) but did not commit the red state before adding annotations | Self-review of the commit list | Committed as one `feat:` commit and recorded it here, instead of faking a red commit |
+| 28 | 3 | My OpenAPI test collected every parameter of the list operation, so adding a header broke a test about query parameters | The test run after the time zone change | Filtered the test to `in == "query"`, which is what it meant |
 
 ## 5. Findings that changed the plan
 
@@ -163,7 +164,10 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
   filtered every list. `default=None` plus a test.
 - drf-spectacular loads Swagger UI / ReDoc from `@latest` by default; pinned instead.
 - The manual run created a task due "today" at 21:21 local time, 00:21 UTC the next day, and the
-  server rejected it as past. That is the ADR 0007 limit happening for real, and it is an open question.
+  server rejected it as past. That is the ADR 0007 limit happening for real. The user chose to
+  send the browser's time zone (`X-Timezone`). Because the use cases already depended on a
+  `Clock` port, the fix was a per-request `ZonedClock` in infrastructure plus header parsing;
+  no domain or use case code changed.
 
 ## 6. Edge cases, auth and validation decisions
 
@@ -194,6 +198,8 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 | Rate limits | 6th login, 21st anonymous, 101st signed-in call: 429 with `Retry-After`; separate limits per client IP behind a proxy | `test_throttling.py` |
 | Redis down | Login and task list still 200; a warning is logged | `test_throttling.py` |
 | `overdue` not sent | No filtering (DRF's default would be `False`) | `test_task_list_api.py` |
+| Evening west of UTC | Due "today" accepted and not overdue for a caller sending `X-Timezone: America/Sao_Paulo` at 00:21 UTC; without the header UTC decides | `test_time_zone_api.py` |
+| Bad `X-Timezone` | Unknown, path-like (`../../etc/passwd`), offset (`UTC+3`), blank or folder (`America`) names give 400 on the header, never 500 | `test_requests.py` |
 
 ## 7. Performance and idiomatic quality
 

@@ -61,14 +61,14 @@ decision taken after HANDOFF was written.
 | D39 | `NUM_PROXIES` read from the environment (1 behind nginx) | `config/settings/environment.py` |
 | D40 | Phase 3 notifier logs only (`LoggingNotifier`); Celery replaces it in Phase 4 | `tasks/interfaces/container.py` |
 | D41 | The pagination envelope lives in `tasks/interfaces` (only tasks paginate), not `core` as D11 planned | `tasks/interfaces/pagination.py` |
+| D42 | **"Today" is the caller's date** from the `X-Timezone` header (IANA name, UTC if absent), via a per-request `ZonedClock`. Chosen by the user (option b) after the manual run showed the UTC problem | ADR 0007 (amended) |
 
 ## Known limits (so far)
 
 - The database-down branch of `database_is_up()` is not covered by an automated test (it is
   checked by hand against a stopped container). The 503 response itself is tested.
 - On Windows, a stopped Redis on `localhost` takes ~2 s to report down (IPv6 then IPv4 attempts).
-- "Today" is the UTC date: near midnight, users far from UTC can see the create rule for due dates
-  shift by a day (ADR 0007).
+- Clients that do not send `X-Timezone` get UTC dates (ADR 0007).
 - Use cases report only the first failing business rule (title, then due date, then assignee).
 - `GET /users` is unpaginated; fine for a team, not for a large organisation.
 - Deleting a task is not version-checked (ADR 0010).
@@ -77,8 +77,5 @@ decision taken after HANDOFF was written.
 
 ## Open questions
 
-- **UTC "today" in the evening (seen live, 2026-11-12 21:21 local = 00:21 UTC on the 13th):**
-  creating a task due "today" in local time is rejected as past for the last hours of every
-  evening west of UTC. Options in the Phase 3 report.
 - **Refresh cookie is `Secure`:** a browser on plain `http://` other than localhost (and Safari
   even on localhost) will not send it. Phase 6 makes `REFRESH_COOKIE_SECURE` an env setting.
