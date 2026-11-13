@@ -3,6 +3,7 @@ from django.urls import include, path
 urlpatterns = [
     path("api/v1/", include("apps.core.interfaces.urls")),
     path("api/v1/", include("apps.users.interfaces.urls")),
+    path("api/v1/", include("apps.tasks.interfaces.urls")),
 ]
 
 # JSON instead of Django's HTML pages, so every error has the same shape.
