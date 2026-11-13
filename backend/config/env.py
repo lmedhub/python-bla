@@ -2,6 +2,7 @@
 
 import os
 
+from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 
 # Django recommends 50+ characters; PyJWT also warns on short HMAC keys.
@@ -38,3 +39,7 @@ def optional_int(name: str) -> int | None:
 
 def csv(name: str) -> list[str]:
     return [item.strip() for item in required(name).split(",") if item.strip()]
+
+
+def cron(name: str, default: str) -> crontab:
+    raise NotImplementedError
