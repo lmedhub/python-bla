@@ -15,6 +15,9 @@ from django.db import transaction
 from apps.tasks.infrastructure.notifications import ASSIGNMENT_JOB, CeleryNotifier
 from config.celery import app
 
+# on_commit needs a database transaction, even though nothing is written.
+pytestmark = pytest.mark.django_db
+
 # Celery's default queue is a Redis list with this name.
 QUEUE = "celery"
 # Nothing listens here, so connecting fails at once.
