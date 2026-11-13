@@ -62,24 +62,23 @@ describe("creating a task", () => {
       HttpResponse.json(
         errorBody("invalid_input", "Invalid input.", {
           title: ["This field may not be blank."],
-          due_date: ["Due date cannot be in the past."],
+          due_date: ["Enter a valid date."],
         }),
         { status: 400 },
       ),
     );
     const { user } = renderApp("/tasks/new");
 
+    // Input the browser accepts (a past date would be blocked by the picker's min first).
     await user.type(await screen.findByLabelText("Title"), "   ");
-    await user.type(screen.getByLabelText("Due date"), "2020-01-01");
+    await user.type(screen.getByLabelText("Due date"), "2099-01-01");
     await user.click(screen.getByRole("button", { name: "Create task" }));
 
     const title = await screen.findByLabelText("Title");
     expect(await screen.findByText("This field may not be blank.")).toBeInTheDocument();
     expect(title).toHaveAttribute("aria-invalid", "true");
     expect(title).toHaveAccessibleDescription("This field may not be blank.");
-    expect(screen.getByLabelText("Due date")).toHaveAccessibleDescription(
-      "Due date cannot be in the past.",
-    );
+    expect(screen.getByLabelText("Due date")).toHaveAccessibleDescription("Enter a valid date.");
     expect(screen.getByRole("heading", { name: "New task" })).toBeInTheDocument();
   });
 

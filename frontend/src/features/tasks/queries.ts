@@ -1,6 +1,6 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { listTasks } from "../../api/tasks";
-import type { User } from "../../api/types";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createTask, deleteTask, getTask, listTasks, updateTask } from "../../api/tasks";
+import type { TaskChanges, User } from "../../api/types";
 import { listUsers } from "../../api/users";
 import { queryFromFilters, type TaskFilters } from "./filters";
 
@@ -18,6 +18,35 @@ export function useTaskPage(filters: TaskFilters) {
     // Keep showing the current page while the next one loads, instead of a blank list.
     placeholderData: keepPreviousData,
   });
+}
+
+export function useTask(taskId: number) {
+  return useQuery({ queryKey: taskKeys.detail(taskId), queryFn: () => getTask(taskId) });
+}
+
+/** After any change, every task query is stale: lists and details alike. */
+function useInvalidateTasks() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: taskKeys.all });
+}
+
+export function useCreateTask() {
+  const invalidate = useInvalidateTasks();
+  return useMutation({ mutationFn: createTask, onSuccess: invalidate });
+}
+
+export function useUpdateTask() {
+  const invalidate = useInvalidateTasks();
+  return useMutation({
+    mutationFn: ({ taskId, changes }: { taskId: number; changes: TaskChanges }) =>
+      updateTask(taskId, changes),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteTask() {
+  const invalidate = useInvalidateTasks();
+  return useMutation({ mutationFn: deleteTask, onSuccess: invalidate });
 }
 
 export function useUsers() {
