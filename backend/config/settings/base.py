@@ -45,6 +45,18 @@ TIME_ZONE = "UTC"
 USE_I18N = False
 USE_TZ = True
 
+# Everything to stdout, where Docker collects it. Without this, Django prints its own errors
+# (such as a failed on_commit publish when Redis is down) only when DEBUG is on.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"plain": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "plain"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+    # Drop Django's DEBUG-only console handler; its records reach the root handler instead.
+    "loggers": {"django": {"handlers": [], "level": "INFO"}},
+}
+
 REST_FRAMEWORK: dict[str, Any] = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
