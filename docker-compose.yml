@@ -1,5 +1,24 @@
 name: taskmanager
 
+# The API, the worker and beat share one image and one configuration.
+x-backend: &backend
+  build: ./backend
+  image: taskmanager-backend
+  env_file: .env
+  # .env points at localhost for local development; inside compose, use service names.
+  environment:
+    POSTGRES_HOST: db
+    POSTGRES_PORT: "5432"
+    REDIS_URL: redis://redis:6379/0
+    EMAIL_HOST: mailpit
+    EMAIL_PORT: "1025"
+    ALLOWED_HOSTS: localhost,127.0.0.1
+  # A stopped container's name stops resolving, and the default resolver then waits 8 s
+  # per lookup, which socket timeouts do not cover. Fail a lookup in about 1 s instead,
+  # so a Redis outage slows requests a little rather than hanging them (ADR 0005).
+  dns_opt: ["timeout:1", "attempts:1"]
+  restart: unless-stopped
+
 services:
   db:
     image: postgres:18-alpine
@@ -27,6 +46,59 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Catches every email. Web UI: http://localhost:8025. The image has its own healthcheck.
+  mailpit:
+    image: axllent/mailpit:v1.33.1
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+
+  api:
+    <<: *backend
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "config.celery", "worker", "--loglevel", "info", "--concurrency", "2"]
+    depends_on:
+      # The API runs the migrations; a healthy API means the tables exist.
+      api:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config.celery inspect ping --destination celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # One beat process only: two would send every scheduled job twice.
+  # No healthcheck: beat has no command to ask whether it is alive.
+  beat:
+    <<: *backend
+    # The image's code directory is read-only for the app user; beat's state file goes in /tmp.
+    command: ["celery", "-A", "config.celery", "beat", "--loglevel", "info", "--schedule", "/tmp/celerybeat-schedule"]
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:
