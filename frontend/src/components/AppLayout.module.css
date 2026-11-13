@@ -1,0 +1,24 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 700;
+  text-decoration: none;
+  color: inherit;
+  margin-right: auto;
+}
+
+.user {
+  color: var(--muted);
+}
+
+.main {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
