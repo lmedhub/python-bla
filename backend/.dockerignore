@@ -1,0 +1,12 @@
+# Only what the image runs. Tests, caches and the local virtualenv stay out.
+.venv
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+**/tests
+conftest.py
+Dockerfile
+.dockerignore

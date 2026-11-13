@@ -2,6 +2,7 @@
 
 import os
 
+from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 
 # Django recommends 50+ characters; PyJWT also warns on short HMAC keys.
@@ -38,3 +39,15 @@ def optional_int(name: str) -> int | None:
 
 def csv(name: str) -> list[str]:
     return [item.strip() for item in required(name).split(",") if item.strip()]
+
+
+def cron(name: str, default: str) -> crontab:
+    """A standard 5-field cron expression ("minute hour day month weekday"), checked at startup."""
+    # from_string splits on single spaces, so collapse repeated ones first.
+    value = " ".join(os.environ.get(name, default).split())
+    try:
+        return crontab.from_string(value)
+    except ValueError as error:
+        raise ImproperlyConfigured(
+            f'Environment variable {name} must be a 5-field cron expression, like "0 8 * * *".'
+        ) from error

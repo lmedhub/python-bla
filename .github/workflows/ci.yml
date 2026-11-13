@@ -53,3 +53,16 @@ jobs:
         run: |
           make schema
           git diff --exit-code openapi.yaml
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # One image runs the API, the Celery worker and beat. Building it here catches a broken
+      # Dockerfile or lockfile before anyone runs docker compose.
+      - name: Build the backend image
+        run: docker build --tag taskmanager-backend backend
+
+      - name: The image runs as a non-root user
+        run: test "$(docker run --rm taskmanager-backend id -u)" != "0"

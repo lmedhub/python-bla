@@ -45,6 +45,18 @@ TIME_ZONE = "UTC"
 USE_I18N = False
 USE_TZ = True
 
+# Everything to stdout, where Docker collects it. Without this, Django prints its own errors
+# (such as a failed on_commit publish when Redis is down) only when DEBUG is on.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"plain": {"format": "%(asctime)s %(levelname)s %(name)s: %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "plain"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+    # Drop Django's DEBUG-only console handler; its records reach the root handler instead.
+    "loggers": {"django": {"handlers": [], "level": "INFO"}},
+}
+
 REST_FRAMEWORK: dict[str, Any] = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -102,6 +114,40 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_FAVICON_HREF": "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.0/favicon-32x32.png",
     "REDOC_DIST": "https://cdn.jsdelivr.net/npm/redoc@2.5.4",
 }
+
+
+# Celery reads every CELERY_* setting (config/celery.py). The broker URL is set per environment.
+# Jobs only send email, so nothing reads their return values: no result backend.
+CELERY_TASK_IGNORE_RESULT = True
+# A job is acknowledged after it finishes, so a worker that dies mid-job does not lose it.
+# The jobs are idempotent, so running one twice is safe (ADR 0012).
+CELERY_TASK_ACKS_LATE = True
+# When Redis is down, publishing must fail fast instead of retrying inside the request
+# (ADR 0005). The request still succeeds; the notification is logged as lost.
+CELERY_TASK_PUBLISH_RETRY = False
+CELERY_BROKER_CONNECTION_TIMEOUT = 1
+CELERY_BROKER_TRANSPORT_OPTIONS = {"socket_connect_timeout": 1}
+# The worker keeps retrying the broker at startup (the default); set to silence the warning.
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_TIMEZONE = "UTC"
+
+DEFAULT_FROM_EMAIL = "Task Manager <noreply@taskmanager.example>"
+
+
+def smtp_mailer(*, host: str, port: int) -> dict[str, Any]:
+    # MAILERS replaces the EMAIL_* settings, which Django 6.1 deprecates.
+    return {
+        "default": {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            # A slow mail server makes the job fail and retry, instead of blocking a worker.
+            "OPTIONS": {"host": host, "port": port, "timeout": 5},
+        }
+    }
+
+
+def overdue_digest_schedule(schedule: Any) -> dict[str, Any]:
+    # The task name is a plain string: settings must not import application code.
+    return {"overdue-digest": {"task": "tasks.send_overdue_digests", "schedule": schedule}}
 
 
 def postgres(*, host: str, port: str, name: str, user: str, password: str) -> dict[str, Any]:

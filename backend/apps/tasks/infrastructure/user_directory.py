@@ -1,4 +1,8 @@
+from collections.abc import Collection
+
 from django.contrib.auth import get_user_model
+
+from apps.tasks.application.ports import Recipient
 
 
 class DjangoUserDirectory:
@@ -10,3 +14,10 @@ class DjangoUserDirectory:
 
     def is_active_user(self, user_id: int) -> bool:
         return get_user_model().objects.filter(pk=user_id, is_active=True).exists()
+
+    def active_recipients(self, user_ids: Collection[int]) -> dict[int, Recipient]:
+        rows = get_user_model().objects.filter(pk__in=user_ids, is_active=True)
+        return {
+            pk: Recipient(email=email, name=name)
+            for pk, email, name in rows.values_list("pk", "email", "name")
+        }

@@ -39,14 +39,19 @@ class DjangoTaskRepository:
         models.Task.objects.filter(pk=task_id).delete()
 
     def find(self, task_filter: TaskFilter, page: PageRequest, today: date) -> Page[Task]:
-        rows = models.Task.objects.filter(_conditions(task_filter, today)).order_by(
-            # Tasks without a due date go last; id breaks ties so pages never overlap.
-            F("due_date").asc(nulls_last=True),
-            "id",
-        )
+        rows = models.Task.objects.filter(_conditions(task_filter, today)).order_by(*_ORDER)
         total = rows.count()
         items = [_to_entity(row) for row in rows[page.offset : page.offset + page.page_size]]
         return Page(items=items, total=total, request=page)
+
+    def list_overdue(self, today: date) -> list[Task]:
+        # Same rule and order as the list endpoint's overdue filter, without paging.
+        rows = models.Task.objects.filter(_conditions(TaskFilter(overdue=True), today))
+        return [_to_entity(row) for row in rows.order_by(*_ORDER)]
+
+
+# Tasks without a due date go last; id breaks ties so pages never overlap.
+_ORDER = (F("due_date").asc(nulls_last=True), "id")
 
 
 def _conditions(task_filter: TaskFilter, today: date) -> Q:

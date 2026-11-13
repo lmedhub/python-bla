@@ -3,8 +3,27 @@
 A task manager API (Django 6.1 + DRF + PostgreSQL + Celery/Redis) with a React frontend,
 built as a technical interview exercise.
 
-**Status:** Phase 3 (backend API done: auth, tasks, throttling, OpenAPI). See [PLAN.md](PLAN.md).
-The full setup guide, demo credentials and architecture summary come in Phase 6.
+**Status:** Phase 4 (backend done: API, background email with Celery, Docker images for the
+backend). See [PLAN.md](PLAN.md). The frontend, demo data, full setup guide and architecture
+summary come in Phases 5 and 6.
+
+## Run the backend with Docker
+
+```sh
+cp .env.example .env
+docker compose up -d --build
+```
+
+| Service | What it is | URL |
+| --- | --- | --- |
+| `api` | Django + gunicorn. Runs migrations on start | http://localhost:8000/api/v1/docs |
+| `worker` | Celery worker: assignment emails, overdue digest | — |
+| `beat` | Celery beat: runs the digest on `OVERDUE_DIGEST_CRON` (UTC) | — |
+| `mailpit` | Catches every email | http://localhost:8025 |
+| `db`, `redis` | Postgres 18, Redis 8 | ports 5432, 6379 |
+
+There are no demo users yet (Phase 6 adds `seed_demo`).
+To run `manage.py runserver` at the same time, stop the `api` service or set `API_PORT` in `.env`.
 
 ## Run the checks
 
@@ -40,6 +59,14 @@ curl http://localhost:8000/api/v1/health
 ```
 
 Pre-commit hooks: `uv run --directory backend pre-commit install`.
+
+Celery outside Docker (from `backend/`, with `docker compose up -d db redis mailpit`). On Windows
+the worker needs `--pool solo`, because Celery's default pool does not run on Windows:
+
+```sh
+uv run --env-file ../.env celery -A config.celery worker --loglevel info --pool solo
+uv run --env-file ../.env celery -A config.celery beat --loglevel info
+```
 
 ## API
 

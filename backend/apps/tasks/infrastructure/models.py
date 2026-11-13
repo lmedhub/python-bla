@@ -58,3 +58,13 @@ class Task(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class SentNotification(models.Model):
+    """One row per email sent by a job. The unique key is what makes the jobs idempotent."""
+
+    key = models.CharField(max_length=200, unique=True)
+    sent_at = models.DateTimeField()
+
+    def __str__(self) -> str:
+        return self.key

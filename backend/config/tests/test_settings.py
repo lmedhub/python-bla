@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from types import ModuleType
 
 import pytest
+from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 
 ENVIRONMENT = {
@@ -16,6 +17,8 @@ ENVIRONMENT = {
     "REDIS_URL": "redis://redis:6379/0",
     "ALLOWED_HOSTS": "api.example.com, localhost",
     "NUM_PROXIES": "1",
+    "EMAIL_HOST": "mailpit",
+    "EMAIL_PORT": "1025",
 }
 SETTINGS_MODULES = ("config.settings.environment", "config.settings.local", "config.settings.prod")
 
@@ -83,3 +86,51 @@ def test_without_num_proxies_no_proxy_is_trusted(environment):
     prod = _load("config.settings.prod")
 
     assert prod.REST_FRAMEWORK["NUM_PROXIES"] is None
+
+
+def test_celery_uses_redis_as_its_broker(environment):
+    prod = _load("config.settings.prod")
+
+    assert prod.CELERY_BROKER_URL == "redis://redis:6379/0"
+
+
+def test_the_overdue_digest_runs_daily_at_eight_utc_by_default(environment):
+    environment.delenv("OVERDUE_DIGEST_CRON", raising=False)
+
+    prod = _load("config.settings.prod")
+
+    entry = prod.CELERY_BEAT_SCHEDULE["overdue-digest"]
+    assert entry["task"] == "tasks.send_overdue_digests"
+    assert entry["schedule"] == crontab.from_string("0 8 * * *")
+    assert prod.CELERY_TIMEZONE == "UTC"
+
+
+def test_the_overdue_digest_schedule_comes_from_the_environment(environment):
+    environment.setenv("OVERDUE_DIGEST_CRON", "15 7 * * 1-5")
+
+    prod = _load("config.settings.prod")
+
+    assert prod.CELERY_BEAT_SCHEDULE["overdue-digest"]["schedule"] == crontab.from_string(
+        "15 7 * * 1-5"
+    )
+
+
+def test_a_bad_digest_schedule_stops_startup(environment):
+    environment.setenv("OVERDUE_DIGEST_CRON", "every morning")
+
+    with pytest.raises(ImproperlyConfigured, match="OVERDUE_DIGEST_CRON"):
+        _load("config.settings.prod")
+
+
+def test_email_goes_to_the_configured_smtp_server(environment):
+    prod = _load("config.settings.prod")
+
+    options = prod.MAILERS["default"]["OPTIONS"]
+    assert (options["host"], options["port"]) == ("mailpit", 1025)
+
+
+def test_email_host_is_required(environment):
+    environment.delenv("EMAIL_HOST")
+
+    with pytest.raises(ImproperlyConfigured, match="EMAIL_HOST"):
+        _load("config.settings.prod")
