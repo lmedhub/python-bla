@@ -37,3 +37,7 @@ def test_recording_the_same_key_twice_is_harmless(sent_log):
     sent_log.record("assignment:abc")
 
     assert SentNotification.objects.filter(key="assignment:abc").count() == 1
+
+
+def test_a_sent_notification_reads_as_its_key():
+    assert str(SentNotification(key="digest:1:2026-11-12", sent_at=NOW)) == "digest:1:2026-11-12"
