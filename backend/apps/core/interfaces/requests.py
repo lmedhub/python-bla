@@ -1,6 +1,7 @@
-from datetime import tzinfo
+from datetime import UTC, tzinfo
+from zoneinfo import ZoneInfo
 
-from rest_framework.exceptions import NotAuthenticated
+from rest_framework.exceptions import NotAuthenticated, ValidationError
 from rest_framework.request import Request
 
 TIME_ZONE_HEADER = "X-Timezone"
@@ -19,4 +20,14 @@ def current_user_id(request: Request) -> int:
 
 
 def request_time_zone(request: Request) -> tzinfo:
-    raise NotImplementedError
+    """The caller's IANA time zone (e.g. "America/Sao_Paulo"); UTC when not sent."""
+    name = request.headers.get(TIME_ZONE_HEADER)
+    if name is None:
+        return UTC
+    try:
+        return ZoneInfo(name.strip())
+    # KeyError: unknown zone (ZoneInfoNotFoundError). ValueError: malformed or path-like name.
+    # OSError: some platforms raise it for a folder name such as "America".
+    except (KeyError, ValueError, OSError) as error:
+        message = "Unknown time zone. Send an IANA name such as Europe/Lisbon."
+        raise ValidationError({TIME_ZONE_HEADER: [message]}) from error

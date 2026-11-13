@@ -76,7 +76,8 @@ def test_every_client_error_uses_the_shared_error_shape(schema):
 
 
 def test_the_task_list_documents_its_query_parameters(schema):
-    parameters = {p["name"] for p in schema["paths"]["/api/v1/tasks"]["get"]["parameters"]}
+    operation = schema["paths"]["/api/v1/tasks"]["get"]
+    parameters = {p["name"] for p in operation["parameters"] if p["in"] == "query"}
 
     assert parameters == {
         "status",

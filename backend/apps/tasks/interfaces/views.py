@@ -1,5 +1,6 @@
 """HTTP in, use case call, HTTP out. No business rules and no ORM here."""
 
+from datetime import tzinfo
 from typing import Any
 
 from drf_spectacular.utils import OpenApiResponse, extend_schema
@@ -8,8 +9,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.interfaces.requests import current_user_id
-from apps.core.interfaces.schema import error_responses
+from apps.core.interfaces.requests import current_user_id, request_time_zone
+from apps.core.interfaces.schema import TIME_ZONE_PARAMETER, error_responses
 from apps.tasks.application.queries import PageRequest, TaskFilter
 from apps.tasks.application.use_cases import CreateTaskCommand, TaskChanges, UpdateTaskCommand
 from apps.tasks.domain.task import Task, TaskStatus
@@ -29,7 +30,7 @@ class TaskCollectionView(APIView):
         operation_id="tasks_list",
         summary="List tasks",
         description="Ordered by due date (no date last), then id. Filters combine with AND.",
-        parameters=[TaskListQuerySerializer],
+        parameters=[TaskListQuerySerializer, TIME_ZONE_PARAMETER],
         responses={200: PaginatedTaskListSerializer, **error_responses(400, 401, 429)},
     )
     def get(self, request: Request) -> Response:
@@ -37,15 +38,18 @@ class TaskCollectionView(APIView):
         query.is_valid(raise_exception=True)
         params = query.validated_data
 
-        page = container.list_tasks().execute(
+        zone = request_time_zone(request)
+        page = container.list_tasks(zone).execute(
             _task_filter(params, current_user_id(request)),
             PageRequest(page=params["page"], page_size=params["page_size"]),
         )
-        return Response(paginated(request, page, [_serialize(task) for task in page.items]))
+        results = [_serialize(task, zone) for task in page.items]
+        return Response(paginated(request, page, results))
 
     @extend_schema(
         summary="Create a task",
         description="The caller becomes the creator. The due date may not be in the past.",
+        parameters=[TIME_ZONE_PARAMETER],
         request=TaskCreateSerializer,
         responses={201: TaskSerializer, **error_responses(400, 401, 429)},
     )
@@ -54,7 +58,8 @@ class TaskCollectionView(APIView):
         payload.is_valid(raise_exception=True)
         data = payload.validated_data
 
-        task = container.create_task().execute(
+        zone = request_time_zone(request)
+        task = container.create_task(zone).execute(
             CreateTaskCommand(
                 actor_id=current_user_id(request),
                 title=data["title"],
@@ -63,22 +68,25 @@ class TaskCollectionView(APIView):
                 assignee_id=data["assignee"],
             )
         )
-        return Response(_serialize(task), status=status.HTTP_201_CREATED)
+        return Response(_serialize(task, zone), status=status.HTTP_201_CREATED)
 
 
 class TaskDetailView(APIView):
     @extend_schema(
         summary="Get a task",
-        responses={200: TaskSerializer, **error_responses(401, 404, 429)},
+        parameters=[TIME_ZONE_PARAMETER],
+        responses={200: TaskSerializer, **error_responses(400, 401, 404, 429)},
     )
     def get(self, request: Request, task_id: int) -> Response:
-        return Response(_serialize(container.get_task().execute(task_id)))
+        task = container.get_task().execute(task_id)
+        return Response(_serialize(task, request_time_zone(request)))
 
     @extend_schema(
         summary="Change a task",
         description="Only the fields sent change. The creator may change anything; the "
         "assignee only the status. Send `version` to get a 409 instead of overwriting a "
         "newer change.",
+        parameters=[TIME_ZONE_PARAMETER],
         request=TaskUpdateSerializer,
         responses={200: TaskSerializer, **error_responses(400, 401, 403, 404, 409, 429)},
     )
@@ -95,7 +103,7 @@ class TaskDetailView(APIView):
                 expected_version=data.get("version"),
             )
         )
-        return Response(_serialize(task))
+        return Response(_serialize(task, request_time_zone(request)))
 
     @extend_schema(
         summary="Delete a task",
@@ -148,5 +156,5 @@ def _assignee_id(value: str | None, user_id: int) -> int | None:
     return int(value)
 
 
-def _serialize(task: Task) -> dict[str, Any]:
-    return dict(TaskSerializer(task, context={"today": container.today()}).data)
+def _serialize(task: Task, zone: tzinfo) -> dict[str, Any]:
+    return dict(TaskSerializer(task, context={"today": container.today(zone)}).data)

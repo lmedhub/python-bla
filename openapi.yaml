@@ -114,6 +114,12 @@ paths:
         AND.
       summary: List tasks
       parameters:
+      - in: header
+        name: X-Timezone
+        schema:
+          type: string
+        description: The caller's IANA time zone, e.g. America/Sao_Paulo. Decides
+          what "today" is for due dates and overdue. Defaults to UTC.
       - in: query
         name: assignee
         schema:
@@ -194,6 +200,13 @@ paths:
       description: The caller becomes the creator. The due date may not be in the
         past.
       summary: Create a task
+      parameters:
+      - in: header
+        name: X-Timezone
+        schema:
+          type: string
+        description: The caller's IANA time zone, e.g. America/Sao_Paulo. Decides
+          what "today" is for due dates and overdue. Defaults to UTC.
       tags:
       - tasks
       requestBody:
@@ -234,6 +247,12 @@ paths:
       operationId: tasks_retrieve
       summary: Get a task
       parameters:
+      - in: header
+        name: X-Timezone
+        schema:
+          type: string
+        description: The caller's IANA time zone, e.g. America/Sao_Paulo. Decides
+          what "today" is for due dates and overdue. Defaults to UTC.
       - in: path
         name: task_id
         schema:
@@ -250,6 +269,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Task'
           description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid input. `fields` says which field and why.
         '401':
           content:
             application/json:
@@ -275,6 +300,12 @@ paths:
         a newer change.
       summary: Change a task
       parameters:
+      - in: header
+        name: X-Timezone
+        schema:
+          type: string
+        description: The caller's IANA time zone, e.g. America/Sao_Paulo. Decides
+          what "today" is for due dates and overdue. Defaults to UTC.
       - in: path
         name: task_id
         schema:

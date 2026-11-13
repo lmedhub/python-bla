@@ -1,9 +1,11 @@
 """OpenAPI pieces shared by every feature: the error shape and its responses."""
 
-from drf_spectacular.utils import OpenApiResponse, inline_serializer
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, inline_serializer
 from rest_framework import serializers
 
 from apps.core.interfaces.errors import CODES_BY_STATUS
+from apps.core.interfaces.requests import TIME_ZONE_HEADER
 
 ERROR_CODES = sorted({*CODES_BY_STATUS.values(), "parse_error", "server_error", "error"})
 HEALTH_STATUSES = ["ok", "degraded", "down"]
@@ -31,6 +33,16 @@ _DESCRIPTIONS = {
     409: "Changed by someone else since you read it. Reload and try again.",
     429: "Too many requests. See the Retry-After header.",
 }
+
+
+TIME_ZONE_PARAMETER = OpenApiParameter(
+    name=TIME_ZONE_HEADER,
+    location=OpenApiParameter.HEADER,
+    type=OpenApiTypes.STR,
+    required=False,
+    description="The caller's IANA time zone, e.g. America/Sao_Paulo. Decides what "
+    '"today" is for due dates and overdue. Defaults to UTC.',
+)
 
 
 def error_responses(*status_codes: int) -> dict[int, OpenApiResponse]:
