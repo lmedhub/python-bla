@@ -22,9 +22,14 @@ RETRY_POLICY = {
 
 @app.task(bind=True, name=container.ASSIGNMENT_JOB, **RETRY_POLICY)
 def notify_assignment(self: Task, task_id: int, assignee_id: int) -> str:
-    raise NotImplementedError
+    # The message id is the same on every retry of this job, so it is the idempotency key.
+    delivery = container.notify_assignment().execute(task_id, assignee_id, self.request.id)
+    logger.info("Assignment email for task %s to user %s: %s.", task_id, assignee_id, delivery)
+    return delivery.value
 
 
 @app.task(name=container.DIGEST_JOB, **RETRY_POLICY)
 def send_overdue_digests() -> int:
-    raise NotImplementedError
+    sent = container.send_overdue_digests().execute()
+    logger.info("Overdue digest: %s email(s) sent.", sent)
+    return sent

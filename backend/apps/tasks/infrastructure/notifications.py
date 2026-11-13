@@ -1,18 +1,7 @@
-import logging
 from functools import partial
 
 from celery import Celery
 from django.db import transaction
-
-logger = logging.getLogger(__name__)
-
-
-class LoggingNotifier:
-    """Writes the assignment to the log. Phase 4 adds the e-mail through Celery."""
-
-    def task_assigned(self, task_id: int, assignee_id: int) -> None:
-        logger.info("Task %s was assigned to user %s.", task_id, assignee_id)
-
 
 # Job names are the contract between the sender (here) and the worker (interfaces/jobs.py).
 ASSIGNMENT_JOB = "tasks.notify_assignment"

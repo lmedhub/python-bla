@@ -1,6 +1,5 @@
 """Create, read, update and delete over HTTP. Alice creates, Bob is assigned, Carol is neither."""
 
-import logging
 from datetime import timedelta
 
 import pytest
@@ -57,16 +56,6 @@ class TestCreate:
         assert body["version"] == 1
         assert body["is_overdue"] is False
         assert body["created_at"] == "2026-11-12T09:30:00Z"
-
-    def test_assigning_on_create_logs_a_notification(self, login_as, alice, bob, caplog):
-        with caplog.at_level(logging.INFO):
-            response = login_as(alice).post(
-                TASKS, {"title": "Review", "assignee": bob.pk}, format="json"
-            )
-
-        assert response.status_code == 201
-        assert response.json()["assignee"] == bob.pk
-        assert f"assigned to user {bob.pk}" in caplog.text
 
     @pytest.mark.parametrize("title", ["", "   ", "x" * 201])
     def test_rejects_blank_whitespace_or_too_long_titles(self, login_as, alice, title):
