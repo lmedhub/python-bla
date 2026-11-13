@@ -24,5 +24,17 @@ def secret_key() -> str:
     return key
 
 
+def optional_int(name: str) -> int | None:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError as error:
+        raise ImproperlyConfigured(
+            f"Environment variable {name} must be a whole number."
+        ) from error
+
+
 def csv(name: str) -> list[str]:
     return [item.strip() for item in required(name).split(",") if item.strip()]

@@ -9,8 +9,8 @@ decision taken after HANDOFF was written.
 | --- | --- | --- |
 | 0 | Skeleton, uv, pre-commit, import-linter, CI skeleton, compose db/redis, health check, ADRs | done (PR #1) |
 | 1 | Domain + application, test-driven, no Django | done (PR #2) |
-| 2 | Infrastructure: custom User first, Task model, migrations, repositories | in review (branch `phase-2`) |
-| 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | not started |
+| 2 | Infrastructure: custom User first, Task model, migrations, repositories | done (PR #3) |
+| 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | in review (branch `phase-3`) |
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior | not started |
 | 5 | Frontend | not started |
 | 6 | Docker polish, seed, full CI, README, architecture doc | not started |
@@ -53,14 +53,22 @@ decision taken after HANDOFF was written.
 | D31 | `created_by` is PROTECT (users are deactivated, not deleted); `assignee` is SET_NULL | `tasks/infrastructure/models.py` |
 | D32 | API returns user ids only; the frontend maps names from `GET /users` | Phase 3 / 5 |
 | D33 | `make lint` / CI fail when a model change has no migration (`makemigrations --check`) | `Makefile` |
+| D34 | Clients send `version` in the PATCH body (not `If-Match`) | ADR 0011 |
+| D35 | **No per-task permission flags** in responses (user feedback). Login/refresh return the user; the frontend derives permissions from `created_by` / `assignee` | ADR 0011 |
+| D36 | Refresh returns `{access, user}`, same as login | ADR 0003, 0011 |
+| D37 | Relative pagination links | ADR 0011 |
+| D38 | Swagger UI / ReDoc assets pinned (`swagger-ui-dist@5.34.0`, `redoc@2.5.4`), loaded from jsdelivr | ADR 0011 |
+| D39 | `NUM_PROXIES` read from the environment (1 behind nginx) | `config/settings/environment.py` |
+| D40 | Phase 3 notifier logs only (`LoggingNotifier`); Celery replaces it in Phase 4 | `tasks/interfaces/container.py` |
+| D41 | The pagination envelope lives in `tasks/interfaces` (only tasks paginate), not `core` as D11 planned | `tasks/interfaces/pagination.py` |
+| D42 | **"Today" is the caller's date** from the `X-Timezone` header (IANA name, UTC if absent), via a per-request `ZonedClock`. Chosen by the user (option b) after the manual run showed the UTC problem | ADR 0007 (amended) |
 
 ## Known limits (so far)
 
 - The database-down branch of `database_is_up()` is not covered by an automated test (it is
   checked by hand against a stopped container). The 503 response itself is tested.
 - On Windows, a stopped Redis on `localhost` takes ~2 s to report down (IPv6 then IPv4 attempts).
-- "Today" is the UTC date: near midnight, users far from UTC can see the create rule for due dates
-  shift by a day (ADR 0007).
+- Clients that do not send `X-Timezone` get UTC dates (ADR 0007).
 - Use cases report only the first failing business rule (title, then due date, then assignee).
 - `GET /users` is unpaginated; fine for a team, not for a large organisation.
 - Deleting a task is not version-checked (ADR 0010).
@@ -69,4 +77,5 @@ decision taken after HANDOFF was written.
 
 ## Open questions
 
-- None right now.
+- **Refresh cookie is `Secure`:** a browser on plain `http://` other than localhost (and Safari
+  even on localhost) will not send it. Phase 6 makes `REFRESH_COOKIE_SECURE` an env setting.

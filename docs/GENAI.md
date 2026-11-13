@@ -89,6 +89,9 @@ def health_report() -> HealthReport:
 | Django 6 compatibility | Smoke test on Django 6.1.3: simplejwt login, rotation, reuse rejected (401), blacklist; `spectacular --validate`; run with `-W default`, no deprecation warnings |
 | TDD | Tests committed red first (`test:`), then the code (`feat:`). Phase 0 red: 4 `ModuleNotFoundError`s. From Phase 1, red commits include typed stubs, so the red is a behavior failure (e.g. "28 failed, 1 passed", "45 failed") and the pre-commit hooks still pass |
 | Mutation check (Phase 2) | Infrastructure: update without the version filter → concurrency test fails; overdue without "not done" → 2 tests fail; removing `nulls_last=True` → **survived**, because Postgres already sorts NULLs last for ASC (documented, not hidden) |
+| OpenAPI | `spectacular --validate --fail-on-warn` inside the test suite; it caught an enum that was not named and an operationId clash |
+| Mutation check (Phase 3) | Missing `default=None` on the `overdue` filter, DRF validating the PATCH title before permission, links dropping filters: each caught by a test |
+| Manual run (Phase 3) | Real server + Postgres + Redis: login (cookie flags), me, create, stale version 409, list, bad filter 400, no token 401, delete, docs pages |
 | Migrations | `makemigrations --check` exits 1 after an unmigrated model change (tried on purpose, then reverted) |
 | Mutation check | Phase 1: three business rules broken on purpose ("done" again moves `completed_at`, assignee may edit any field, past due date allowed on create). Each was caught by 2 tests (domain + use case), then reverted |
 | Coverage | `--cov-fail-under=90` in `addopts`, so every run enforces it |
@@ -122,6 +125,16 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 16 | 2 | A shell heredoc batch that wrote several files had broken quoting and ran nothing | bash syntax error | Wrote the files one by one with the editor tool |
 | 17 | 2 | First `SystemClock` test accepted "today or yesterday": it would pass with a broken implementation | Self-review | Replaced with a deterministic subclass test (`now()` fixed at 23:59 UTC) |
 | 18 | 2 | Reported the migration check's exit code through `\| tail`, which printed `exit=0` (the exit code of `tail`) | Noticed the output did not match the expected failure | Re-ran without the pipe: exit code 1 |
+| 19 | 3 | Repeated mistake 10: API tests imported `NOW` from a `conftest.py` | Self-review before the first run | Imported it from `tests/application/constants.py` |
+| 20 | 3 | The throttling module imported `APIView` at runtime; DRF imports that module while defining `APIView`, so every request failed with a circular `ImportError` | All throttle tests failed with the same import error | Import only under `TYPE_CHECKING` (it is needed for hints only) |
+| 21 | 3 | My mutation helper reverted with `git checkout`, but two mutated files were uncommitted (one untracked): two mutations stayed in the working tree | Checked `git status` / the files after the run | Restored by hand and confirmed `git diff` against HEAD is empty. Mutate only committed files from now on |
+| 22 | 3 | Named the OpenAPI enum by pointing `ENUM_NAME_OVERRIDES` at the `TaskStatus` StrEnum class; drf-spectacular did not match it | `--fail-on-warn` test (enum collision warning) | Pointed it at the exact `STATUS_CHOICES` list the serializers use |
+| 23 | 3 | Two `APIView` GETs (list and detail) got the same operationId | `--fail-on-warn` test | Explicit `operation_id="tasks_list"` |
+| 24 | 3 | Declared a serializer field called `fields`, which clashes with DRF's `Serializer.fields` | mypy | Built the Error component with `inline_serializer` |
+| 25 | 3 | Passed `request.user.pk` (`int \| None`) to a use case expecting `int` | mypy `arg-type` | `current_user_id(request)` helper that raises 401 on `None`, with tests |
+| 26 | 3 | Two more shell heredocs with triple quotes failed to parse | bash syntax error | Wrote the edit scripts to files and ran them |
+| 27 | 3 | For the OpenAPI slice I ran red (6 failing) but did not commit the red state before adding annotations | Self-review of the commit list | Committed as one `feat:` commit and recorded it here, instead of faking a red commit |
+| 28 | 3 | My OpenAPI test collected every parameter of the list operation, so adding a header broke a test about query parameters | The test run after the time zone change | Filtered the test to `in == "query"`, which is what it meant |
 
 ## 5. Findings that changed the plan
 
@@ -143,6 +156,18 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 - Django already creates indexes for foreign keys (`assignee_id`, `created_by_id`), confirmed with
   `sqlmigrate`. Only the composite `(status, due_date)` index is declared.
 - `get_user_model()` lets tasks check users without importing the users feature (ADR 0009).
+- simplejwt 5.5.1 returns a 500 when a refresh token belongs to a deleted user (unhandled
+  `DoesNotExist`); found by reading its source, now a tested 401.
+- DRF turns 401 into 403 for views without authenticators; found in DRF's source before
+  writing the login views.
+- DRF reads a missing boolean query parameter as `False`; `overdue` would have silently
+  filtered every list. `default=None` plus a test.
+- drf-spectacular loads Swagger UI / ReDoc from `@latest` by default; pinned instead.
+- The manual run created a task due "today" at 21:21 local time, 00:21 UTC the next day, and the
+  server rejected it as past. That is the ADR 0007 limit happening for real. The user chose to
+  send the browser's time zone (`X-Timezone`). Because the use cases already depended on a
+  `Clock` port, the fix was a per-request `ZonedClock` in infrastructure plus header parsing;
+  no domain or use case code changed.
 
 ## 6. Edge cases, auth and validation decisions
 
@@ -166,6 +191,15 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 | Inactive user logs in | Rejected | `test_user_model.py` |
 | Assignee user deleted | Their tasks become unassigned; creators cannot be deleted | `test_task_model.py` |
 | Overdue filter and tasks without due date | `overdue=false` includes them | `test_task_find.py` |
+| Login failures | Unknown email, wrong password and inactive user: same 401, same message | `test_auth_api.py` |
+| Refresh token reused / tampered / expired / deleted user | 401 (never 500) | `test_auth_api.py` |
+| Access token expired / tampered / wrong scheme / user deactivated | 401 with `WWW-Authenticate: Bearer` | `test_users_api.py` |
+| 401 vs 403 | No token is 401; signed in but not allowed is 403 | `test_tasks_api.py` |
+| Rate limits | 6th login, 21st anonymous, 101st signed-in call: 429 with `Retry-After`; separate limits per client IP behind a proxy | `test_throttling.py` |
+| Redis down | Login and task list still 200; a warning is logged | `test_throttling.py` |
+| `overdue` not sent | No filtering (DRF's default would be `False`) | `test_task_list_api.py` |
+| Evening west of UTC | Due "today" accepted and not overdue for a caller sending `X-Timezone: America/Sao_Paulo` at 00:21 UTC; without the header UTC decides | `test_time_zone_api.py` |
+| Bad `X-Timezone` | Unknown, path-like (`../../etc/passwd`), offset (`UTC+3`), blank or folder (`America`) names give 400 on the header, never 500 | `test_requests.py` |
 
 ## 7. Performance and idiomatic quality
 
@@ -177,3 +211,5 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 - **Constraints in the database**, not only in Python: status, title and `completed_at` rules
   hold even for raw SQL or a future bulk script.
 - **Locking**: optimistic, with a single conditional `UPDATE`, so reads never block (ADR 0010).
+- **API list**: the number of queries is the same for 3 or 15 tasks (compared with
+  `CaptureQueriesContext`): the JWT user lookup, count, page, and the request savepoints.

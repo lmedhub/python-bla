@@ -1,3 +1,4 @@
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -5,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.interfaces import container
+from apps.core.interfaces.schema import HealthSerializer
 
 
 def _word(is_up: bool) -> str:
@@ -17,6 +19,16 @@ class HealthView(APIView):
     permission_classes = (AllowAny,)
     throttle_classes = ()
 
+    @extend_schema(
+        summary="Liveness and readiness",
+        auth=[],
+        responses={
+            200: OpenApiResponse(
+                HealthSerializer, description='"ok", or "degraded" without Redis.'
+            ),
+            503: OpenApiResponse(HealthSerializer, description="The database is down."),
+        },
+    )
     def get(self, request: Request) -> Response:
         report = container.health_report()
         is_down = report.status == "down"
