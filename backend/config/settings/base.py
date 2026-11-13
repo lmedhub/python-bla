@@ -44,6 +44,14 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "apps.core.interfaces.errors.api_exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "apps.core.interfaces.throttling.AnonThrottle",
+        "apps.core.interfaces.throttling.UserThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"anon": "20/min", "user": "100/min", "login": "5/min"},
+    # How many proxies sit in front of Django; behind nginx this must be 1, or every
+    # client shares nginx's IP and one throttle bucket. None means "no proxy".
+    "NUM_PROXIES": None,
 }
 
 # Short-lived access token kept in memory by the frontend; rotating refresh token in an

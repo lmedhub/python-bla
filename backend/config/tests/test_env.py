@@ -1,7 +1,7 @@
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-from config.env import MIN_SECRET_KEY_LENGTH, csv, required, secret_key
+from config.env import MIN_SECRET_KEY_LENGTH, csv, optional_int, required, secret_key
 
 
 def test_required_returns_the_value(monkeypatch):
@@ -49,3 +49,22 @@ def test_csv_splits_and_trims(monkeypatch):
     monkeypatch.setenv("HOSTS", "a.example.com, b.example.com ,")
 
     assert csv("HOSTS") == ["a.example.com", "b.example.com"]
+
+
+def test_optional_int_is_none_when_missing(monkeypatch):
+    monkeypatch.delenv("NUM_PROXIES", raising=False)
+
+    assert optional_int("NUM_PROXIES") is None
+
+
+def test_optional_int_parses_a_number(monkeypatch):
+    monkeypatch.setenv("NUM_PROXIES", " 1 ")
+
+    assert optional_int("NUM_PROXIES") == 1
+
+
+def test_optional_int_rejects_text(monkeypatch):
+    monkeypatch.setenv("NUM_PROXIES", "one")
+
+    with pytest.raises(ImproperlyConfigured, match="NUM_PROXIES"):
+        optional_int("NUM_PROXIES")

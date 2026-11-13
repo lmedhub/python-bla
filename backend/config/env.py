@@ -24,5 +24,9 @@ def secret_key() -> str:
     return key
 
 
+def optional_int(name: str) -> int | None:
+    raise NotImplementedError
+
+
 def csv(name: str) -> list[str]:
     return [item.strip() for item in required(name).split(",") if item.strip()]

@@ -15,6 +15,7 @@ ENVIRONMENT = {
     "POSTGRES_PASSWORD": "secret",
     "REDIS_URL": "redis://redis:6379/0",
     "ALLOWED_HOSTS": "api.example.com, localhost",
+    "NUM_PROXIES": "1",
 }
 SETTINGS_MODULES = ("config.settings.environment", "config.settings.local", "config.settings.prod")
 
@@ -68,3 +69,17 @@ def test_local_settings_enable_debug_for_localhost_only(environment):
 
     assert local.DEBUG is True
     assert local.ALLOWED_HOSTS == ["localhost", "127.0.0.1"]
+
+
+def test_prod_trusts_one_proxy_when_told_to(environment):
+    prod = _load("config.settings.prod")
+
+    assert prod.REST_FRAMEWORK["NUM_PROXIES"] == 1
+
+
+def test_without_num_proxies_no_proxy_is_trusted(environment):
+    environment.delenv("NUM_PROXIES")
+
+    prod = _load("config.settings.prod")
+
+    assert prod.REST_FRAMEWORK["NUM_PROXIES"] is None
