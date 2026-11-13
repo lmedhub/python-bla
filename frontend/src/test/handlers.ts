@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { User } from "../api/types";
+import type { Task, User } from "../api/types";
 import { alice } from "./data";
 import { server } from "./server";
 
@@ -21,4 +21,20 @@ export function signedOut() {
       HttpResponse.json(errorBody("not_authenticated", "No session."), { status: 401 }),
     ),
   );
+}
+
+/** GET /tasks answers with `tasks` (and `count`, for paging); returns the URLs requested. */
+export function taskListReturns(tasks: Task[], count = tasks.length): URL[] {
+  const requested: URL[] = [];
+  server.use(
+    http.get("/api/v1/tasks", ({ request }) => {
+      requested.push(new URL(request.url));
+      return HttpResponse.json({ count, next: null, previous: null, results: tasks });
+    }),
+  );
+  return requested;
+}
+
+export function usersAre(users: User[]) {
+  server.use(http.get("/api/v1/users", () => HttpResponse.json(users)));
 }
