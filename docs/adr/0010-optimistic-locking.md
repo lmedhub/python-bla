@@ -22,13 +22,14 @@ instead of "last write wins".
 - **Transactions**:
   - HTTP requests: one transaction per request (`ATOMIC_REQUESTS=True`), so a failure after the
     write rolls the write back.
-  - Celery tasks and management commands are not HTTP requests. They wrap their work in
-    `transaction.atomic()` in their phases (4 and 6).
+  - Celery jobs and management commands are not HTTP requests. `seed_demo` wraps its work in
+    `transaction.atomic()`. The notification jobs do not: they check, send, then record
+    (D47, ADR 0012), because a rollback cannot unsend an email.
 - `updated_at` / `created_at` come from the `Clock` port, so the version and timestamp tests are exact.
 
 ## Consequences
 
 - No row locks and no `select_for_update`: reads never block, and a conflict costs one retry
   for the user.
-- Phase 3 decides how a client sends `expected_version` (a `version` field in PATCH, or `If-Match`).
+- Clients send `expected_version` as a `version` field in the PATCH body (ADR 0011 #3).
 - Delete is not version-checked: deleting a task someone just edited is still a delete.

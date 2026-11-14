@@ -13,8 +13,8 @@ nginx serves the frontend and the API from the same origin.
 - **Access token**: short lived, kept **in memory** in the frontend only.
 - **Refresh token**: rotated on every use, old one blacklisted
   (`djangorestframework-simplejwt` with `token_blacklist`). Sent as a cookie:
-  `HttpOnly; SameSite=Strict; Path=/api/v1/auth`. `Secure` comes from settings
-  (on in prod). Browsers treat `http://localhost` as secure, so the demo still works.
+  `HttpOnly; SameSite=Strict; Path=/api/v1/auth`. `Secure` comes from
+  `REFRESH_COOKIE_SECURE` (on by default in every environment, D65). Browsers treat `http://localhost` as secure, so the demo still works.
 - Thin custom login, refresh and logout views wrap simplejwt's serializers, because
   simplejwt's own views read the refresh token from the body, not a cookie.
 - **CSRF**: the only cookie-authenticated endpoints are refresh and logout. `SameSite=Strict`

@@ -13,11 +13,12 @@ so the two rules conflict. HANDOFF's pragmatism clause would allow a queryset-ba
 
 Keep the layer rule and drop django-filter:
 
-1. A DRF serializer in `interfaces` validates `status`, `due_before`, `due_after`,
-   `assignee` (`me` is resolved here), `overdue`, `page` and `page_size`.
-2. It builds a plain `TaskFilter` value object (domain) and a page request.
+1. A DRF serializer in `interfaces` checks the types of `status`, `due_before`, `due_after`,
+   `assignee`, `overdue`, `page` and `page_size`.
+2. The view resolves `me` and builds a plain `TaskFilter` and a `PageRequest`
+   (`application/queries.py`). `PageRequest` enforces the `page` and `page_size` ranges.
 3. The repository (infrastructure) turns `TaskFilter` into `Q` objects and returns a
-   `Page` (domain entities plus a total count).
+   `Page` (`application/queries.py`: domain entities plus a total count).
 4. Interfaces build the usual `{count, next, previous, results}` envelope.
 
 ## Consequences

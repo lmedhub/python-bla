@@ -183,7 +183,7 @@ Some editors start shells in `c:\...`, and Vitest then loads its own modules twi
 
 What the tests cover:
 
-- **Backend** (pytest, 351 tests, ~99.8% coverage): domain rules with no Django; use cases with
+- **Backend** (pytest, 353 tests, ~99.8% coverage): domain rules with no Django; use cases with
   in-memory fakes; repositories against real Postgres; the API's status codes, permissions,
   validation, pagination, filters, rate limits and query counts; Celery jobs and the
   Redis-down path against a real broker.
@@ -243,4 +243,4 @@ and delete their own task; seeded data is only read.
 - [docs/adr/](docs/adr/): architecture decision records
 - [docs/explain.md](docs/explain.md): query plans for the task list, before and after its index
 - [docs/security-review.md](docs/security-review.md): what was checked, fixed and accepted
-- [docs/GENAI.md](docs/GENAI.md): how AI was used, how its output was checked, and its mistakes
+- [GENAI.md](GENAI.md): how AI was used, how its output was checked, and its mistakes

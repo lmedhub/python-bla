@@ -20,5 +20,5 @@ Use **drf-spectacular** (0.30.0).
 ## Consequences
 
 - drf-spectacular 0.30.0 declares Django up to 6.0, while we use 6.1. A smoke test
-  (`spectacular --validate` on Django 6.1.3) passed. A schema drift check in CI
-  (Phase 3) will catch regressions.
+  (`spectacular --validate` on Django 6.1.3) passed. The schema drift check in CI
+  (added in Phase 3) catches regressions.

@@ -10,13 +10,14 @@ HTTP. HANDOFF also wants one error shape for every response.
 
 ## Decision
 
-Three exceptions in `apps/core/domain/errors.py`, a small shared kernel that imports nothing:
+Exceptions in `apps/core/domain/errors.py`, a small shared kernel that imports nothing:
 
 | Exception | HTTP | Notes |
 | --- | --- | --- |
 | `InvalidInputError(fields)` | 400 | `fields` maps an API field name to messages, e.g. `{"assignee": [...]}` |
 | `PermissionDeniedError` | 403 | |
 | `NotFoundError` | 404 | |
+| `ConflictError` | 409 | Added by ADR 0010 (stale `version`) |
 
 - Names end in `Error` (ruff N818). They avoid `ValidationError` and `PermissionDenied`,
   because Django and DRF already use those names, and the Phase 3 error handler imports both sets.
@@ -26,6 +27,6 @@ Three exceptions in `apps/core/domain/errors.py`, a small shared kernel that imp
 
 ## Consequences
 
-- One DRF exception handler (Phase 3) maps these three to the shared error shape.
+- One DRF exception handler (Phase 3) maps these exceptions to the shared error shape.
 - Use cases report only the first failing rule, in the order title, then due date, then
   assignee. DRF serializer validation in Phase 3 still reports all field-type errors at once.

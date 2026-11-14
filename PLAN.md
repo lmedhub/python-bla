@@ -15,7 +15,7 @@ decision taken after HANDOFF was written.
 | 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | done (PR #6) |
 | 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | done (PR #7) |
 | 7 | Hardening: EXPLAIN, security review, console check, clean clone | done (PR #8) |
-| + | Browser tests (Playwright) in CI, after Phase 7 (not in HANDOFF; asked for by the user) | in review (branch `e2e`) |
+| + | Browser tests (Playwright) in CI, after Phase 7 (not in HANDOFF; asked for by the user) | done (PR #9) |
 
 ## Decisions and deviations
 
@@ -39,8 +39,8 @@ decision taken after HANDOFF was written.
 | D16 | Makefile is for Linux/macOS/CI. The README lists the same commands for Windows | `Makefile`, README |
 | D17 | "interfaces must not use the ORM" is enforced by ruff TID251, because import-linter cannot forbid `django.db` (an external subpackage) | `apps/*/interfaces/ruff.toml` |
 | D18 | No migrations in Phase 0, so the custom User model can be the first migration in Phase 2 | — |
-| D19 | No `.dockerignore` yet: there is no Dockerfile until the API image is built | Phase 6 |
-| D20 | Red commits contain **typed stubs** (`raise NotImplementedError`), so tests fail on behavior and the pre-commit mypy hook still passes. Hooks are never skipped | `docs/GENAI.md` |
+| D19 | No `.dockerignore` yet: there is no Dockerfile until the API image is built (added with the images: `backend/.dockerignore`, `frontend/.dockerignore`) | Phase 6 |
+| D20 | Red commits contain **typed stubs** (`raise NotImplementedError`), so tests fail on behavior and the pre-commit mypy hook still passes. Hooks are never skipped | `GENAI.md` |
 | D21 | Shared errors `InvalidInputError` (400), `PermissionDeniedError` (403), `NotFoundError` (404) in `apps/core/domain`. Renamed from the planned `ValidationFailed` etc. (ruff N818, and no clash with Django/DRF names) | ADR 0008 |
 | D22 | A page past the end returns 200 with empty `results` and the real `count` | `application/queries.py` |
 | D23 | The assignee's permission is judged on fields that actually **change**, so re-sending an unchanged title with a status change is allowed. Permission is checked before validation | `domain/task.py`, ADR 0008 |
@@ -91,12 +91,13 @@ decision taken after HANDOFF was written.
 | D68 | CSP and security headers on the app's pages only; Swagger UI under `/api/` is left to Django because it loads its scripts from a CDN | `frontend/nginx.conf` |
 | D69 | CI's `docker` job starts the whole stack from a clean checkout with `.env.example` and runs `scripts/smoke_test.py` through nginx. Schemathesis (optional in HANDOFF) is not added | `.github/workflows/ci.yml` |
 | D70 | The smoke test is plain Python (standard library), so it runs on the CI runner and on Windows without `jq` | `scripts/smoke_test.py` |
-| D71 | **New index `(due_date, id)`** for the list order (EXPLAIN: full sort before). No partial index for overdue (measured, under 1 ms gained). The data script is committed so the numbers can be reproduced | ADR 0015, `docs/explain.md`, `scripts/explain_list.sql` |
+| D71 | **New index `(due_date, id)`** for the list order (EXPLAIN: full sort before). No partial index for overdue (measured: under 1 ms on the count, about 5 ms on the daily digest). The data script is committed so the numbers can be reproduced | ADR 0015, `docs/explain.md`, `scripts/explain_list.sql` |
 | D72 | Runtime images apply their distro's security updates at build time (`apt-get upgrade`, `apk upgrade`): no newer base tag had the fixes. Debian CVEs with no fix are documented, not worked around. Scanned with Trivy (Docker Scout needs a login) | `backend/Dockerfile`, `frontend/Dockerfile`, `docs/security-review.md` |
 | D73 | Django sends `X-Frame-Options: DENY` (Swagger UI and ReDoc are outside nginx's CSP). CSRF middleware, HSTS and the HTTPS redirect stay off, for the reasons in the security review | `config/settings/base.py`, `docs/security-review.md` |
 | D74 | **New dev dependency `@playwright/test` 1.64.1** (the newest release over two weeks old), approved by the user. Browser tests run through nginx in CI's `docker` job, Chromium only. Swagger UI "Authorize" stays a manual check (its markup is not ours) | ADR 0016, `frontend/e2e/`, `.github/workflows/ci.yml` |
 | D75 | Each spec file signs in once and shares a page: login allows 5 a minute per IP, and the rotating refresh token rules out a saved session. The wrong-password case stays in the unit tests, to keep the run at 3 sign-ins (4 with the smoke test) | ADR 0016, `frontend/e2e/support.ts` |
 | D76 | Every browser test fails on a console warning, console error or uncaught exception, turning HANDOFF's "zero console warnings" into a CI check | `frontend/e2e/support.ts` |
+| D77 | **`GENAI.md` moves to the repo root**, and the repo has no symlinks. Both come from the reviewers' email, which overrides HANDOFF's `docs/GENAI.md`. Checked: no symlinks tracked now or anywhere in git history (`git ls-files -s`, `git log --all --raw`, mode `120000`) | `GENAI.md` |
 
 ## Definition of done (HANDOFF §13)
 
@@ -104,16 +105,16 @@ Checked item by item at the end of Phase 7 (2026-11-14), on branch `phase-7`.
 
 | Item | Status | Evidence |
 | --- | --- | --- |
-| `docker compose up --build` from a clean clone gives a working app with demo data | done | Fresh clone, `.env.example`, separate project: every service healthy, "Seeded 4 users and 30 tasks", smoke test 7/7. CI's `docker` job repeats this on every push |
+| `docker compose up --build` from a clean clone gives a working app with demo data | done | Fresh clone, `.env.example`, separate project: every service healthy, "Seeded 4 users and 30 tasks", smoke test 7/7. CI's `docker` job repeats this on every pull request and every push to `main` |
 | Demo credentials in the README | done | README "Demo users": four accounts, one password |
 | ruff, mypy, import-linter | done | ruff check and format clean; mypy: no issues in 139 files; 6 contracts kept |
 | pytest, at least 90% coverage | done | 353 passed, 99.84% (gate `--cov-fail-under=90`) |
 | Schema drift | done | `spectacular --validate --fail-on-warn` then `git diff --exit-code openapi.yaml`: no change; regenerated TS types: no change |
 | Frontend lint, typecheck, test, build | done | eslint, tsc clean; 67 tests passed; build 319 kB JS (100 kB gzipped) |
-| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Since D76, the Playwright tests check this on every push |
+| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Since D76, the Playwright tests check this in CI's `docker` job (merged in PR #9) |
 | Swagger UI works with "Authorize" | done | Authorize with a real token, then `GET /users/me` in Swagger UI: 200, 0 console messages |
-| README: setup, architecture, decisions, known limits, tests | done | Sections Quick start, Architecture, Decisions (ADR table), Tests and checks, Known limits and next steps |
-| `docs/GENAI.md` complete and honest | done | Prompts, sample, validation table, 52 logged mistakes, findings, edge cases, performance |
+| README: setup, architecture, decisions, known limits, tests | done | Sections Quick start, Architecture, Decisions (ADR table), Testing, Known limits and next steps |
+| `GENAI.md` complete and honest | done | Prompts, sample, validation table, 55 logged mistakes, findings, edge cases, performance |
 | "Known limits" lists real weaknesses and next steps | done | README and the list below; security items in docs/security-review.md |
 
 ## Known limits (so far)
