@@ -61,7 +61,8 @@ Every list request runs two queries: the page and a `COUNT(*)` for the total.
 - **The partial index was not worth it.** On top of `(due_date, id)`,
   `CREATE INDEX ... ON tasks_task (due_date, id) WHERE status <> 'done'` gave overdue page 1
   0.07 ms (no gain), the overdue count 4.0 ms instead of 4.9 ms, and the daily digest 21.8 ms
-  instead of 26.4 ms. That is not worth 2 MB and another index to update on every write.
+  instead of 26.4 ms (a separate run with and without the index, not in the saved files; timings
+  move by a few ms between runs). That is not worth 2 MB and another index to update on every write.
 - A regression test checks the plan, not only that the index exists:
   `test_the_default_order_reads_the_due_date_index_instead_of_sorting` takes the SQL that `find()`
   sends and checks that Postgres reads `tasks_due_date_id_idx` with no Sort step.

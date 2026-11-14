@@ -20,8 +20,9 @@ supports. React Router 8 needs Node 22.22 or later.
 download URLs, so a machine-wide private registry would leak into the lockfile and break CI.
 
 **The API boundary is `src/api/`.**
-- `generated/schema.d.ts` is written by openapi-typescript and never edited. Only `types.ts`
-  names generated types; an ESLint rule rejects imports of `generated/` from anywhere else.
+- `generated/schema.d.ts` is written by openapi-typescript and never edited. Only files in
+  `src/api/` import it (`types.ts` for named types, `client.ts` and `session.ts` for `paths`);
+  an ESLint rule rejects imports of `generated/` from anywhere outside `src/api/`.
 - `client.ts` is the openapi-fetch client; `tasks.ts` and `users.ts` are one function per call;
   `errors.ts` turns the API's single error shape into one `ApiError` class.
 
@@ -58,8 +59,8 @@ network level, so tests run the real client, session and refresh code. Tests:
 
 ## Consequences
 
-- A signed-out visit makes one `POST /auth/refresh` that answers 401, and browsers print
-  every 4xx response in the console (open question in PLAN.md).
+- A signed-out visit makes one `POST /auth/refresh`. It first answered 401, which browsers
+  print in the console; since D64 a request with no cookie answers 204 (ADR 0003).
 - jsdom does not implement `<dialog>`'s `showModal()`. Tests stub it; the real focus and Esc
   behavior is checked in a real browser.
 - `npm audit` reports a moderate advisory in `minimatch`, used by ESLint only; the shipped

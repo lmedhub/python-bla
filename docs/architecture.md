@@ -40,7 +40,8 @@ flowchart LR
     browser -. ":8025" .-> mailpit
 ```
 
-- **web**: the only public entry point (ADR 0014). Same origin for the app and the API.
+- **web**: the only entry point to the app and the API (ADR 0014). db, redis and mailpit also
+  publish ports, for local tools only. Same origin for the app and the API.
 - **api**: migrates, seeds demo data on an empty database, then serves the API.
 - **worker / beat**: same image as `api`, different command (ADR 0004, 0012).
 - **redis**: the Celery broker and the rate-limit cache. If it is down, requests still succeed
@@ -102,8 +103,8 @@ sequenceDiagram
     N-->>B: 201 Task
     B->>B: invalidate ["tasks"] queries, list refetches
     Q->>W: notify_assignment(task id, Bob's id)
-    W->>P: re-read task and Bob, skip if deleted, reassigned or inactive
     W->>P: already sent? (SentNotification key)
+    W->>P: re-read task and Bob, skip if deleted, reassigned or inactive
     W->>M: email to Bob
     W->>P: record key, so a retry sends nothing
 ```

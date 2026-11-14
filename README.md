@@ -152,7 +152,7 @@ npm run dev        # http://localhost:5173, proxies /api to runserver on :8000
 TypeScript types are generated from it. `make schema` regenerates both. CI fails if either is out
 of date.
 
-## Tests and checks
+## Testing
 
 Postgres and Redis must be running for the backend tests (`docker compose up -d db redis`).
 
@@ -183,7 +183,7 @@ Some editors start shells in `c:\...`, and Vitest then loads its own modules twi
 
 What the tests cover:
 
-- **Backend** (pytest, 351 tests, ~99.8% coverage): domain rules with no Django; use cases with
+- **Backend** (pytest, 353 tests, ~99.8% coverage): domain rules with no Django; use cases with
   in-memory fakes; repositories against real Postgres; the API's status codes, permissions,
   validation, pagination, filters, rate limits and query counts; Celery jobs and the
   Redis-down path against a real broker.

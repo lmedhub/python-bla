@@ -195,6 +195,7 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 52 | 7 | Ran the smoke test against the clean clone without exporting `DEMO_PASSWORD`, so the sign-in step sent a blank password | The smoke test's own failure (400, "may not be blank") | Exported it from `.env`, as CI does: 7/7 |
 | 53 | + | The e2e plan said Vitest only picks up `*.test.*` files, so the Playwright `*.spec.ts` files would stay out of the unit run. Vitest's default `include` matches `*.spec.*` too | Checking Vitest's defaults while wiring the config, before the first run | `exclude: [...configDefaults.exclude, "e2e/**"]` in `vite.config.ts` |
 | 54 | + | Removed the temporary `console.warn` probe with `git checkout --`, which does nothing to an untracked file; the probe stayed in the spec | The editor's notice that the file still had the line, then `grep` | Deleted the line; `grep -c probe` returns 0 |
+| 55 | + | PLAN said CI repeats the clean-clone run "on every push", and that the browser tests check the console "on every push". CI runs on pull requests and pushes to `main` only, and the browser tests had not run in CI yet | A doc-against-code audit before the e2e PR | The wording now names the real triggers and says the browser tests passed locally, not yet in CI |
 
 ## 5. Findings that changed the plan
 
@@ -250,7 +251,7 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
   is lower case (`c:\`), because modules load twice. Running from `C:\` works (README).
 - Phase 5: jsdom has no `<dialog>.showModal()`.
 - Phase 5: browsers print every 4xx response in the console, so an expected 401 still shows as an
-  error line (PLAN open question).
+  error line (resolved by D64: no cookie now answers 204).
 - Phase 6: a status code can remove a console error. "Nobody is signed in" is not a failure, so
   refresh without a cookie now says 204; a present but bad cookie is still 401.
 - Phase 6: exposing the API port next to nginx would let any client send its own
@@ -333,7 +334,8 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 - **Indexes**: `(due_date, id)` matches the list order, so every page is read from the index
   and stops at the `LIMIT`; `(status, due_date)` serves the status count; Django adds the foreign
   key indexes. Measured on 100,000 tasks, before and after ([explain.md](explain.md), ADR 0015).
-  A partial index for overdue tasks was measured and rejected (under 1 ms gained).
+  A partial index for overdue tasks was measured and rejected (under 1 ms on the count, about
+  5 ms on the daily digest).
 - **Constraints in the database**, not only in Python: status, title and `completed_at` rules
   hold even for raw SQL or a future bulk script.
 - **Locking**: optimistic, with a single conditional `UPDATE`, so reads never block (ADR 0010).

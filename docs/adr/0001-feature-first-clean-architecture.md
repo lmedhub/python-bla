@@ -12,6 +12,7 @@ erode quickly, especially with generated code.
 
 - Each feature (`tasks`, `users`, plus a small `core`) has four layers:
   `domain` → `application` → `infrastructure` / `interfaces`.
+  (`apps/demo`, added in ADR 0014, holds only the seed command and is not layered.)
 - `domain` and `application` are plain Python. Ports are `typing.Protocol`s.
 - The Django app for a feature **is** its infrastructure layer
   (`apps.<feature>.infrastructure.apps.<Feature>Config`, with a short label like `tasks`).
@@ -20,7 +21,7 @@ erode quickly, especially with generated code.
   module allowed to import infrastructure.
 - Foreign keys to users use the `settings.AUTH_USER_MODEL` string, so `tasks` never
   imports `users.infrastructure`.
-- The rules are checked by **import-linter** (5 contracts in `backend/pyproject.toml`)
+- The rules are checked by **import-linter** (6 contracts in `backend/pyproject.toml`; the 6th, "Demo data is a leaf", came with ADR 0014)
   and by **ruff TID251** (no `django.db.models` / `connection` in `interfaces/`).
   Both run in pre-commit and CI.
 
