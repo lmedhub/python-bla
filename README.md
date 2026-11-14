@@ -105,6 +105,7 @@ Each non-obvious choice has a short record in [docs/adr/](docs/adr/):
 | [0013](docs/adr/0013-frontend-architecture.md) | Frontend architecture |
 | [0014](docs/adr/0014-running-the-stack-and-demo-data.md) | nginx in front, demo data on an empty database |
 | [0015](docs/adr/0015-list-indexes.md) | Indexes for the task list, measured with EXPLAIN ([evidence](docs/explain.md)) |
+| [0016](docs/adr/0016-browser-tests.md) | Browser tests with Playwright, against the whole stack |
 
 Decisions taken during the work, and every deviation from the brief, are listed in
 [PLAN.md](PLAN.md).
@@ -190,6 +191,27 @@ What the tests cover:
   list, filters in the URL, forms, conflicts, delete. A test fails on any console warning.
 - **Whole stack**: CI starts everything from a clean checkout and runs
   [scripts/smoke_test.py](scripts/smoke_test.py) through nginx.
+- **Browser** (Playwright, Chromium, 13 tests in [frontend/e2e/](frontend/e2e/)): through nginx
+  against the real API: sign in and back to the page asked for, the session after a reload,
+  sign out; create, find with filters (also after a reload), edit, complete, delete with its
+  dialog (focus, Esc); what a creator, an assignee and anyone else may do; 320 px width. Any
+  console warning or error fails the test. CI runs them after the smoke test.
+
+To run the browser tests, start the stack first (`make up` or `docker compose up --build -d`):
+
+```sh
+make e2e     # Linux / macOS
+```
+
+```sh
+# Windows (Git Bash), from frontend/
+npx playwright install chromium
+DEMO_PASSWORD=<value from .env> npm run e2e
+```
+
+They sign in 3 times and login allows 5 a minute, so wait a minute between runs.
+`E2E_BASE_URL` points them at another address (default `http://localhost:8080`). They create
+and delete their own task; seeded data is only read.
 
 ## Known limits and next steps
 
