@@ -35,7 +35,10 @@ class Task(models.Model):
 
     class Meta:
         indexes: ClassVar[list[models.Index]] = [
-            # Serves the default list order and the status / due date filters.
+            # Matches the list order (due date, NULLs last, then id), so a page is read from
+            # the index instead of sorting the table (docs/explain.md).
+            models.Index(fields=["due_date", "id"], name="tasks_due_date_id_idx"),
+            # Serves the status filter and its COUNT.
             models.Index(fields=["status", "due_date"], name="tasks_status_due_date_idx"),
         ]
         constraints: ClassVar[list[models.BaseConstraint]] = [

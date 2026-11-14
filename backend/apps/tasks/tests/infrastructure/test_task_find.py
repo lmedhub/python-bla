@@ -1,6 +1,8 @@
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from apps.tasks.application.queries import PageRequest, TaskFilter
 from apps.tasks.domain.task import Task, TaskStatus
@@ -143,3 +145,19 @@ class TestPaging:
             page = repository.find(TaskFilter(), PageRequest(page_size=100), today=TODAY)
 
         assert len(page.items) == 15
+
+
+def test_the_default_order_reads_the_due_date_index_instead_of_sorting(repository):
+    # docs/explain.md: without this index the list endpoint sorts the whole table.
+    with CaptureQueriesContext(connection) as queries:
+        repository.find(TaskFilter(), PageRequest(), today=TODAY)
+    page_sql = queries.captured_queries[-1]["sql"]
+
+    with connection.cursor() as cursor:
+        # Test tables are tiny, so Postgres would scan them; ask which index fits the order.
+        cursor.execute("SET LOCAL enable_seqscan = off")
+        cursor.execute(f"EXPLAIN {page_sql}")
+        plan = "\n".join(row[0] for row in cursor.fetchall())
+
+    assert "tasks_due_date_id_idx" in plan
+    assert "Sort" not in plan

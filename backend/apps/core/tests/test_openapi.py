@@ -114,3 +114,10 @@ def test_task_endpoints_document_the_time_zone_header(schema):
             continue
         headers = {p["name"] for p in operation.get("parameters", []) if p["in"] == "header"}
         assert "X-Timezone" in headers, (path, method)
+
+
+@pytest.mark.django_db
+def test_swagger_ui_and_redoc_refuse_to_be_framed(api_client):
+    # nginx's CSP (frame-ancestors) covers the app's pages only; these pages come from Django.
+    for path in ("/api/v1/docs", "/api/v1/redoc"):
+        assert api_client.get(path).headers.get("X-Frame-Options") == "DENY", path

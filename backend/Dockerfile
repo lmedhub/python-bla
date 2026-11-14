@@ -13,6 +13,11 @@ RUN uv sync --locked --no-dev
 
 # --- runtime: no uv, no build cache, not root --------------------------------
 FROM python:3.12.16-slim-trixie
+# The base image is rebuilt only every few weeks; take Debian's security fixes at build time
+# (the Phase 7 scan found fixed HIGH ones in zlib). The build stage is not shipped.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --no-create-home --uid 10001 app
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv

@@ -13,8 +13,8 @@ decision taken after HANDOFF was written.
 | 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | done (PR #4) |
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | done (PR #5) |
 | 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | done (PR #6) |
-| 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | in review (branch `phase-6`) |
-| 7 | Hardening: EXPLAIN, security review, console check, clean clone | not started |
+| 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | done (PR #7) |
+| 7 | Hardening: EXPLAIN, security review, console check, clean clone | in review (branch `phase-7`) |
 
 ## Decisions and deviations
 
@@ -90,6 +90,27 @@ decision taken after HANDOFF was written.
 | D68 | CSP and security headers on the app's pages only; Swagger UI under `/api/` is left to Django because it loads its scripts from a CDN | `frontend/nginx.conf` |
 | D69 | CI's `docker` job starts the whole stack from a clean checkout with `.env.example` and runs `scripts/smoke_test.py` through nginx. Schemathesis (optional in HANDOFF) is not added | `.github/workflows/ci.yml` |
 | D70 | The smoke test is plain Python (standard library), so it runs on the CI runner and on Windows without `jq` | `scripts/smoke_test.py` |
+| D71 | **New index `(due_date, id)`** for the list order (EXPLAIN: full sort before). No partial index for overdue (measured, under 1 ms gained). The data script is committed so the numbers can be reproduced | ADR 0015, `docs/explain.md`, `scripts/explain_list.sql` |
+| D72 | Runtime images apply their distro's security updates at build time (`apt-get upgrade`, `apk upgrade`): no newer base tag had the fixes. Debian CVEs with no fix are documented, not worked around. Scanned with Trivy (Docker Scout needs a login) | `backend/Dockerfile`, `frontend/Dockerfile`, `docs/security-review.md` |
+| D73 | Django sends `X-Frame-Options: DENY` (Swagger UI and ReDoc are outside nginx's CSP). CSRF middleware, HSTS and the HTTPS redirect stay off, for the reasons in the security review | `config/settings/base.py`, `docs/security-review.md` |
+
+## Definition of done (HANDOFF §13)
+
+Checked item by item at the end of Phase 7 (2026-11-14), on branch `phase-7`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| `docker compose up --build` from a clean clone gives a working app with demo data | done | Fresh clone, `.env.example`, separate project: every service healthy, "Seeded 4 users and 30 tasks", smoke test 7/7. CI's `docker` job repeats this on every push |
+| Demo credentials in the README | done | README "Demo users": four accounts, one password |
+| ruff, mypy, import-linter | done | ruff check and format clean; mypy: no issues in 139 files; 6 contracts kept |
+| pytest, at least 90% coverage | done | 353 passed, 99.84% (gate `--cov-fail-under=90`) |
+| Schema drift | done | `spectacular --validate --fail-on-warn` then `git diff --exit-code openapi.yaml`: no change; regenerated TS types: no change |
+| Frontend lint, typecheck, test, build | done | eslint, tsc clean; 67 tests passed; build 319 kB JS (100 kB gzipped) |
+| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400 |
+| Swagger UI works with "Authorize" | done | Authorize with a real token, then `GET /users/me` in Swagger UI: 200, 0 console messages |
+| README: setup, architecture, decisions, known limits, tests | done | Sections Quick start, Architecture, Decisions (ADR table), Tests and checks, Known limits and next steps |
+| `docs/GENAI.md` complete and honest | done | Prompts, sample, validation table, 52 logged mistakes, findings, edge cases, performance |
+| "Known limits" lists real weaknesses and next steps | done | README and the list below; security items in docs/security-review.md |
 
 ## Known limits (so far)
 
@@ -107,14 +128,19 @@ decision taken after HANDOFF was written.
 - `SentNotification` grows by one row per email; no cleanup job yet.
 - Celery beat has no healthcheck; the worker's (`inspect ping`) shows "unhealthy" for up to 30 s
   after a Redis outage ends.
-- Docker's scanner reports 2 high-severity vulnerabilities in the `python:3.12.16-slim-trixie`
-  base image (Phase 7 security review).
+- The backend image has 47 HIGH findings (11 CVEs) that Debian has not fixed; none is reachable
+  from the app (docs/security-review.md).
+- No HSTS or HTTPS redirect: TLS is expected to end at a load balancer in front of the stack.
 - `npm audit` reports a moderate advisory in `minimatch` (GHSA-g3hv-75wg-m249), reached only through
-  ESLint; `npm audit --omit=dev` is clean.
+  ESLint and typescript-eslint; `npm audit --omit=dev` is clean. typescript-eslint has no
+  release with a fixed `minimatch` yet.
 - jsdom has no `<dialog>.showModal()`: tests stub it; focus and Esc are checked in a real browser.
 - On Windows, Vitest must run from an upper-case drive path (README).
 - The demo password is in `.env.example` and the README; it protects demo data only.
 - The digest uses the UTC date; a scheduled job has no caller time zone.
+- Every list request runs `COUNT(*)` over the matching rows, and deep pages walk the skipped rows
+  (`OFFSET`): 9 ms and 23 ms at 100,000 tasks. Keyset pagination is the next step if it matters
+  (docs/explain.md).
 - `nulls_last=True` in the list order cannot be tested on Postgres, which already sorts NULLs last
   for ascending order (an "equivalent mutant"). It is kept for intent and portability.
 

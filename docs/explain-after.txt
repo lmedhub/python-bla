@@ -1,0 +1,171 @@
+# After: migration 0003 adds tasks_due_date_id_idx (due_date, id).
+# Output of: psql -X < scripts/explain_list.sql  (PostgreSQL 18.6, docs/explain.md)
+
+Pager usage is off.
+ setseed
+---------
+
+(1 row)
+
+INSERT 0 50
+INSERT 0 100000
+VACUUM
+VACUUM
+   status    | count | with_due_date | assigned
+-------------+-------+---------------+----------
+ done        | 35277 |         31849 |    28286
+ in_progress | 25064 |         22504 |    20076
+ todo        | 39659 |         35720 |    31737
+(3 rows)
+
+=== 1. Default list, page 1 ===
+                                                QUERY PLAN
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.014..0.023 rows=10.00 loops=1)
+   Buffers: shared hit=11
+   ->  Index Scan using tasks_due_date_id_idx on tasks_task (actual time=0.014..0.021 rows=10.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=11
+ Planning:
+   Buffers: shared hit=24
+ Planning Time: 0.231 ms
+ Execution Time: 0.042 ms
+(9 rows)
+
+=== 2. Default list, page 500 of 100 ===
+                                                  QUERY PLAN
+--------------------------------------------------------------------------------------------------------------
+ Limit (actual time=22.854..22.909 rows=100.00 loops=1)
+   Buffers: shared hit=45869
+   ->  Index Scan using tasks_due_date_id_idx on tasks_task (actual time=0.024..21.593 rows=50000.00 loops=1)
+         Index Searches: 1
+         Buffers: shared hit=45869
+ Planning Time: 0.085 ms
+ Execution Time: 22.965 ms
+(7 rows)
+
+=== 3. Count for pagination, no filter ===
+                                                          QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=9.281..9.281 rows=1.00 loops=1)
+   Buffers: shared hit=102
+   ->  Index Only Scan using tasks_task_created_by_id_1345568a on tasks_task (actual time=0.054..5.714 rows=100000.00 loops=1)
+         Heap Fetches: 0
+         Index Searches: 1
+         Buffers: shared hit=102
+ Planning Time: 0.130 ms
+ Execution Time: 9.325 ms
+(8 rows)
+
+=== 4. status=in_progress ===
+                                                QUERY PLAN
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.027..0.056 rows=10.00 loops=1)
+   Buffers: shared hit=27
+   ->  Index Scan using tasks_due_date_id_idx on tasks_task (actual time=0.026..0.054 rows=10.00 loops=1)
+         Filter: ((status)::text = 'in_progress'::text)
+         Rows Removed by Filter: 18
+         Index Searches: 1
+         Buffers: shared hit=27
+ Planning Time: 0.174 ms
+ Execution Time: 0.093 ms
+(9 rows)
+
+=== 5. Count, status=in_progress ===
+                                                      QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=3.200..3.200 rows=1.00 loops=1)
+   Buffers: shared hit=34
+   ->  Index Only Scan using tasks_status_due_date_idx on tasks_task (actual time=0.059..1.997 rows=25064.00 loops=1)
+         Index Cond: (status = 'in_progress'::text)
+         Heap Fetches: 0
+         Index Searches: 1
+         Buffers: shared hit=34
+ Planning Time: 0.116 ms
+ Execution Time: 3.243 ms
+(9 rows)
+
+=== 6. due_after=2026-11-01, due_before=2026-11-30 ===
+                                                QUERY PLAN
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.024..0.038 rows=10.00 loops=1)
+   Buffers: shared hit=13
+   ->  Index Scan using tasks_due_date_id_idx on tasks_task (actual time=0.022..0.036 rows=10.00 loops=1)
+         Index Cond: ((due_date >= '2026-11-01'::date) AND (due_date <= '2026-11-30'::date))
+         Index Searches: 1
+         Buffers: shared hit=13
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.356 ms
+ Execution Time: 0.073 ms
+(10 rows)
+
+=== 7. assignee=7 ===
+                                                QUERY PLAN
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.100..0.498 rows=10.00 loops=1)
+   Buffers: shared hit=528
+   ->  Index Scan using tasks_due_date_id_idx on tasks_task (actual time=0.099..0.497 rows=10.00 loops=1)
+         Filter: (assignee_id = 7)
+         Rows Removed by Filter: 568
+         Index Searches: 1
+         Buffers: shared hit=528
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.134 ms
+ Execution Time: 0.532 ms
+(11 rows)
+
+=== 8. overdue=true ===
+                                                QUERY PLAN
+----------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.029..0.049 rows=10.00 loops=1)
+   Buffers: shared hit=16
+   ->  Index Scan using tasks_due_date_id_idx on tasks_task (actual time=0.028..0.046 rows=10.00 loops=1)
+         Index Cond: (due_date < '2026-11-14'::date)
+         Filter: ((status)::text <> 'done'::text)
+         Rows Removed by Filter: 5
+         Index Searches: 1
+         Buffers: shared hit=16
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.217 ms
+ Execution Time: 0.085 ms
+(12 rows)
+
+=== 9. Count, overdue=true ===
+                                                      QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=4.913..4.914 rows=1.00 loops=1)
+   Buffers: shared hit=66
+   ->  Index Only Scan using tasks_status_due_date_idx on tasks_task (actual time=1.291..3.879 rows=28853.00 loops=1)
+         Index Cond: (due_date < '2026-11-14'::date)
+         Filter: ((status)::text <> 'done'::text)
+         Rows Removed by Filter: 15914
+         Heap Fetches: 0
+         Index Searches: 4
+         Buffers: shared hit=66
+ Planning Time: 0.094 ms
+ Execution Time: 4.953 ms
+(11 rows)
+
+=== 10. Overdue digest (all rows, no limit) ===
+                                                 QUERY PLAN
+-------------------------------------------------------------------------------------------------------------
+ Sort (actual time=21.085..23.848 rows=28853.00 loops=1)
+   Sort Key: due_date, id
+   Sort Method: quicksort  Memory: 3415kB
+   Buffers: shared hit=1375
+   ->  Bitmap Heap Scan on tasks_task (actual time=1.568..9.445 rows=28853.00 loops=1)
+         Recheck Cond: (due_date < '2026-11-14'::date)
+         Filter: ((status)::text <> 'done'::text)
+         Rows Removed by Filter: 15914
+         Heap Blocks: exact=1312
+         Buffers: shared hit=1375
+         ->  Bitmap Index Scan on tasks_status_due_date_idx (actual time=1.391..1.392 rows=44767.00 loops=1)
+               Index Cond: (due_date < '2026-11-14'::date)
+               Index Searches: 4
+               Buffers: shared hit=63
+ Planning Time: 0.105 ms
+ Execution Time: 24.959 ms
+(16 rows)
