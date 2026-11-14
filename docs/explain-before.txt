@@ -1,0 +1,210 @@
+# Before: indexes from migrations 0001-0002 (no tasks_due_date_id_idx).
+# Output of: psql -X < scripts/explain_list.sql  (PostgreSQL 18.6, docs/explain.md)
+
+Pager usage is off.
+ setseed
+---------
+
+(1 row)
+
+INSERT 0 50
+INSERT 0 100000
+VACUUM
+VACUUM
+   status    | count | with_due_date | assigned
+-------------+-------+---------------+----------
+ done        | 35277 |         31849 |    28286
+ in_progress | 25064 |         22504 |    20076
+ todo        | 39659 |         35720 |    31737
+(3 rows)
+
+=== 1. Default list, page 1 ===
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Limit (actual time=12.115..14.610 rows=10.00 loops=1)
+   Buffers: shared hit=1358
+   ->  Gather Merge (actual time=12.110..14.603 rows=10.00 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=1358
+         ->  Sort (actual time=6.938..6.940 rows=10.00 loops=2)
+               Sort Key: due_date, id
+               Sort Method: top-N heapsort  Memory: 27kB
+               Buffers: shared hit=1358
+               Worker 0:  Sort Method: top-N heapsort  Memory: 27kB
+               ->  Parallel Seq Scan on tasks_task (actual time=0.008..2.263 rows=50000.00 loops=2)
+                     Buffers: shared hit=1312
+ Planning:
+   Buffers: shared hit=24
+ Planning Time: 0.165 ms
+ Execution Time: 14.738 ms
+(17 rows)
+
+=== 2. Default list, page 500 of 100 ===
+                                      QUERY PLAN
+--------------------------------------------------------------------------------------
+ Limit (actual time=82.479..82.498 rows=100.00 loops=1)
+   Buffers: shared hit=1312, temp read=984 written=1089
+   ->  Sort (actual time=73.575..81.237 rows=50000.00 loops=1)
+         Sort Key: due_date, id
+         Sort Method: external merge  Disk: 8688kB
+         Buffers: shared hit=1312, temp read=984 written=1089
+         ->  Seq Scan on tasks_task (actual time=0.013..4.345 rows=100000.00 loops=1)
+               Buffers: shared hit=1312
+ Planning Time: 0.088 ms
+ Execution Time: 83.773 ms
+(10 rows)
+
+=== 3. Count for pagination, no filter ===
+                                                          QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=9.294..9.294 rows=1.00 loops=1)
+   Buffers: shared hit=102
+   ->  Index Only Scan using tasks_task_created_by_id_1345568a on tasks_task (actual time=0.028..5.629 rows=100000.00 loops=1)
+         Heap Fetches: 0
+         Index Searches: 1
+         Buffers: shared hit=102
+ Planning Time: 0.085 ms
+ Execution Time: 9.328 ms
+(8 rows)
+
+=== 4. status=in_progress ===
+                                                     QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.119..0.121 rows=10.00 loops=1)
+   Buffers: shared hit=74
+   ->  Incremental Sort (actual time=0.118..0.119 rows=10.00 loops=1)
+         Sort Key: due_date, id
+         Presorted Key: due_date
+         Full-sort Groups: 1  Sort Method: top-N heapsort  Average Memory: 26kB  Peak Memory: 26kB
+         Pre-sorted Groups: 1  Sort Method: quicksort  Average Memory: 27kB  Peak Memory: 27kB
+         Buffers: shared hit=74
+         ->  Index Scan using tasks_status_due_date_idx on tasks_task (actual time=0.019..0.090 rows=72.00 loops=1)
+               Index Cond: ((status)::text = 'in_progress'::text)
+               Index Searches: 1
+               Buffers: shared hit=74
+ Planning Time: 0.114 ms
+ Execution Time: 0.152 ms
+(14 rows)
+
+=== 5. Count, status=in_progress ===
+                                                      QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=2.711..2.713 rows=1.00 loops=1)
+   Buffers: shared hit=34
+   ->  Index Only Scan using tasks_status_due_date_idx on tasks_task (actual time=0.034..1.743 rows=25064.00 loops=1)
+         Index Cond: (status = 'in_progress'::text)
+         Heap Fetches: 0
+         Index Searches: 1
+         Buffers: shared hit=34
+ Planning Time: 0.083 ms
+ Execution Time: 2.744 ms
+(9 rows)
+
+=== 6. due_after=2026-11-01, due_before=2026-11-30 ===
+                                                    QUERY PLAN
+------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=3.361..3.364 rows=10.00 loops=1)
+   Buffers: shared hit=1337
+   ->  Sort (actual time=3.359..3.360 rows=10.00 loops=1)
+         Sort Key: due_date, id
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=1337
+         ->  Bitmap Heap Scan on tasks_task (actual time=0.520..2.586 rows=7300.00 loops=1)
+               Recheck Cond: ((due_date >= '2026-11-01'::date) AND (due_date <= '2026-11-30'::date))
+               Heap Blocks: exact=1307
+               Buffers: shared hit=1337
+               ->  Bitmap Index Scan on tasks_status_due_date_idx (actual time=0.401..0.401 rows=7300.00 loops=1)
+                     Index Cond: ((due_date >= '2026-11-01'::date) AND (due_date <= '2026-11-30'::date))
+                     Index Searches: 7
+                     Buffers: shared hit=30
+ Planning:
+   Buffers: shared hit=6
+ Planning Time: 0.352 ms
+ Execution Time: 3.451 ms
+(18 rows)
+
+=== 7. assignee=7 ===
+                                                       QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=1.351..1.353 rows=10.00 loops=1)
+   Buffers: shared hit=924
+   ->  Sort (actual time=1.350..1.350 rows=10.00 loops=1)
+         Sort Key: due_date, id
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=924
+         ->  Bitmap Heap Scan on tasks_task (actual time=0.424..1.178 rows=1569.00 loops=1)
+               Recheck Cond: (assignee_id = 7)
+               Heap Blocks: exact=918
+               Buffers: shared hit=924
+               ->  Bitmap Index Scan on tasks_task_assignee_id_2c3ca866 (actual time=0.259..0.260 rows=1569.00 loops=1)
+                     Index Cond: (assignee_id = 7)
+                     Index Searches: 1
+                     Buffers: shared hit=6
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.188 ms
+ Execution Time: 1.397 ms
+(18 rows)
+
+=== 8. overdue=true ===
+                                                    QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=11.732..11.735 rows=10.00 loops=1)
+   Buffers: shared hit=1375
+   ->  Sort (actual time=11.731..11.732 rows=10.00 loops=1)
+         Sort Key: due_date, id
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: shared hit=1375
+         ->  Bitmap Heap Scan on tasks_task (actual time=1.470..9.304 rows=28853.00 loops=1)
+               Recheck Cond: (due_date < '2026-11-14'::date)
+               Filter: ((status)::text <> 'done'::text)
+               Rows Removed by Filter: 15914
+               Heap Blocks: exact=1312
+               Buffers: shared hit=1375
+               ->  Bitmap Index Scan on tasks_status_due_date_idx (actual time=1.314..1.315 rows=44767.00 loops=1)
+                     Index Cond: (due_date < '2026-11-14'::date)
+                     Index Searches: 4
+                     Buffers: shared hit=63
+ Planning:
+   Buffers: shared hit=5
+ Planning Time: 0.109 ms
+ Execution Time: 11.780 ms
+(20 rows)
+
+=== 9. Count, overdue=true ===
+                                                      QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=5.257..5.258 rows=1.00 loops=1)
+   Buffers: shared hit=64
+   ->  Index Only Scan using tasks_status_due_date_idx on tasks_task (actual time=1.702..4.213 rows=28853.00 loops=1)
+         Index Cond: (due_date < '2026-11-14'::date)
+         Filter: ((status)::text <> 'done'::text)
+         Rows Removed by Filter: 15914
+         Heap Fetches: 0
+         Index Searches: 4
+         Buffers: shared hit=64
+ Planning Time: 0.166 ms
+ Execution Time: 5.315 ms
+(11 rows)
+
+=== 10. Overdue digest (all rows, no limit) ===
+                                                 QUERY PLAN
+-------------------------------------------------------------------------------------------------------------
+ Sort (actual time=21.270..25.190 rows=28853.00 loops=1)
+   Sort Key: due_date, id
+   Sort Method: quicksort  Memory: 3415kB
+   Buffers: shared hit=1375
+   ->  Bitmap Heap Scan on tasks_task (actual time=1.840..9.662 rows=28853.00 loops=1)
+         Recheck Cond: (due_date < '2026-11-14'::date)
+         Filter: ((status)::text <> 'done'::text)
+         Rows Removed by Filter: 15914
+         Heap Blocks: exact=1312
+         Buffers: shared hit=1375
+         ->  Bitmap Index Scan on tasks_status_due_date_idx (actual time=1.705..1.706 rows=44767.00 loops=1)
+               Index Cond: (due_date < '2026-11-14'::date)
+               Index Searches: 4
+               Buffers: shared hit=63
+ Planning Time: 0.177 ms
+ Execution Time: 26.225 ms
+(16 rows)

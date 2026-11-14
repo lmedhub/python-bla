@@ -118,6 +118,7 @@ def health_report() -> HealthReport:
 | Clean clone (Phase 6) | `git clone` into a scratch folder, `cp .env.example .env`, `docker compose up --build --wait` under a separate project name and ports: every service healthy in about 150 s, "Seeded 4 users and 30 tasks", smoke test 7/7, nginx as uid 101 |
 | Real browser (Phase 6) | Same 13-step walk through nginx and the strict CSP: 0 console messages, 0 responses at or above 400 (the signed-out 401 is gone). Swagger UI: Authorize with a real token, then "Try it out" on `GET /users/me` answers 200, 0 console messages |
 | Diagrams (Phase 6) | Every mermaid block in `docs/architecture.md` and the README parsed and rendered with mermaid 12.3.0 in a real browser before committing |
+| Query plans (Phase 7) | `EXPLAIN (ANALYZE, BUFFERS)` on 100,000 seeded tasks, for the SQL captured from the real repository, before and after the index; the documented reproduction run again from scratch ([explain.md](explain.md)). A test checks the plan of the default list query |
 | TDD note (Phase 4) | The Redis-down API test passed already in its red commit, because it uses `CeleryNotifier`, finished one slice earlier. It is a guard, not a driver |
 
 ## 4. Mistakes log
@@ -175,6 +176,7 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 47 | 6 | Put a `;` inside a mermaid sequence-diagram message, where it ends the statement | Self-review, then all diagrams rendered with mermaid in a browser | A comma |
 | 48 | 6 | A shell heredoc dropped a `\` line continuation in the CI workflow, joining two commands on one line | `cat -A` of the file after a suspicious `grep` | Rewrote the step as two plain lines with `export` |
 | 49 | 6 | The Swagger UI check (throwaway script) assumed accessible names that Swagger UI 5 does not use, so it timed out three times | The script's own timeouts, a screenshot, a list of buttons | Swagger's own CSS classes and operation ids |
+| 50 | 2 | The model comment (and this log, section 7) said `(status, due_date)` serves the default list order. It cannot: the order has no status filter, so Postgres read and sorted the whole table (14.7 ms for 10 rows of 100,000) | `EXPLAIN (ANALYZE)` on seeded data in Phase 7 | A `(due_date, id)` index (0.04 ms), a test on the real query plan, ADR 0015 |
 
 ## 5. Findings that changed the plan
 
@@ -302,8 +304,10 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 - **Query count**: the task list is exactly 2 queries (count + page) for any number of rows,
   asserted with `django_assert_num_queries(2)` over 15 tasks. The domain `Task` holds ids, not
   related objects, so an N+1 cannot happen in the repository.
-- **Indexes**: `(status, due_date)` for the default order and the main filters, plus Django's
-  automatic foreign key indexes. `EXPLAIN` evidence comes in Phase 7.
+- **Indexes**: `(due_date, id)` matches the list order, so every page is read from the index
+  and stops at the `LIMIT`; `(status, due_date)` serves the status count; Django adds the foreign
+  key indexes. Measured on 100,000 tasks, before and after ([explain.md](explain.md), ADR 0015).
+  A partial index for overdue tasks was measured and rejected (under 1 ms gained).
 - **Constraints in the database**, not only in Python: status, title and `completed_at` rules
   hold even for raw SQL or a future bulk script.
 - **Locking**: optimistic, with a single conditional `UPDATE`, so reads never block (ADR 0010).

@@ -104,6 +104,7 @@ Each non-obvious choice has a short record in [docs/adr/](docs/adr/):
 | [0012](docs/adr/0012-background-notifications.md) | At-least-once email with a sent log |
 | [0013](docs/adr/0013-frontend-architecture.md) | Frontend architecture |
 | [0014](docs/adr/0014-running-the-stack-and-demo-data.md) | nginx in front, demo data on an empty database |
+| [0015](docs/adr/0015-list-indexes.md) | Indexes for the task list, measured with EXPLAIN ([evidence](docs/explain.md)) |
 
 Decisions taken during the work, and every deviation from the brief, are listed in
 [PLAN.md](PLAN.md).

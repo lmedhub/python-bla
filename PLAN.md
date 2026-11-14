@@ -13,8 +13,8 @@ decision taken after HANDOFF was written.
 | 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | done (PR #4) |
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | done (PR #5) |
 | 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | done (PR #6) |
-| 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | in review (branch `phase-6`) |
-| 7 | Hardening: EXPLAIN, security review, console check, clean clone | not started |
+| 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | done (PR #7) |
+| 7 | Hardening: EXPLAIN, security review, console check, clean clone | in progress (branch `phase-7`) |
 
 ## Decisions and deviations
 
@@ -90,6 +90,7 @@ decision taken after HANDOFF was written.
 | D68 | CSP and security headers on the app's pages only; Swagger UI under `/api/` is left to Django because it loads its scripts from a CDN | `frontend/nginx.conf` |
 | D69 | CI's `docker` job starts the whole stack from a clean checkout with `.env.example` and runs `scripts/smoke_test.py` through nginx. Schemathesis (optional in HANDOFF) is not added | `.github/workflows/ci.yml` |
 | D70 | The smoke test is plain Python (standard library), so it runs on the CI runner and on Windows without `jq` | `scripts/smoke_test.py` |
+| D71 | **New index `(due_date, id)`** for the list order (EXPLAIN: full sort before). No partial index for overdue (measured, under 1 ms gained). The data script is committed so the numbers can be reproduced | ADR 0015, `docs/explain.md`, `scripts/explain_list.sql` |
 
 ## Known limits (so far)
 
@@ -115,6 +116,9 @@ decision taken after HANDOFF was written.
 - On Windows, Vitest must run from an upper-case drive path (README).
 - The demo password is in `.env.example` and the README; it protects demo data only.
 - The digest uses the UTC date; a scheduled job has no caller time zone.
+- Every list request runs `COUNT(*)` over the matching rows, and deep pages walk the skipped rows
+  (`OFFSET`): 9 ms and 23 ms at 100,000 tasks. Keyset pagination is the next step if it matters
+  (docs/explain.md).
 - `nulls_last=True` in the list order cannot be tested on Postgres, which already sorts NULLs last
   for ascending order (an "equivalent mutant"). It is kept for intent and portability.
 
