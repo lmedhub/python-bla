@@ -27,6 +27,8 @@ AUTH_USER_MODEL = "users.User"
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # X-Frame-Options: DENY. nginx's CSP covers the app's pages, not Swagger UI and ReDoc.
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 # Only the Swagger UI and ReDoc pages render templates.
