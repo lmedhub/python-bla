@@ -1,0 +1,18 @@
+.page {
+  max-width: 24rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+.form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.form button {
+  margin-top: 0.75rem;
+}
+
+.error {
+  color: var(--danger);
+}
