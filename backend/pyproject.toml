@@ -126,6 +126,12 @@ type = "forbidden"
 source_modules = ["apps.users"]
 forbidden_modules = ["apps.tasks"]
 
+[[tool.importlinter.contracts]]
+name = "Demo data is a leaf: no feature imports it"
+type = "forbidden"
+source_modules = ["apps.tasks", "apps.users", "apps.core", "config"]
+forbidden_modules = ["apps.demo"]
+
 # --- pytest / coverage ------------------------------------------------------
 
 [tool.pytest.ini_options]
