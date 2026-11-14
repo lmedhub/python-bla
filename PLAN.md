@@ -15,7 +15,7 @@ decision taken after HANDOFF was written.
 | 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | done (PR #6) |
 | 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | done (PR #7) |
 | 7 | Hardening: EXPLAIN, security review, console check, clean clone | done (PR #8) |
-| + | Browser tests (Playwright) in CI, after Phase 7 (not in HANDOFF; asked for by the user) | PR pending (branch `e2e`) |
+| + | Browser tests (Playwright) in CI, after Phase 7 (not in HANDOFF; asked for by the user) | done (PR #9) |
 
 ## Decisions and deviations
 
@@ -111,7 +111,7 @@ Checked item by item at the end of Phase 7 (2026-11-14), on branch `phase-7`.
 | pytest, at least 90% coverage | done | 353 passed, 99.84% (gate `--cov-fail-under=90`) |
 | Schema drift | done | `spectacular --validate --fail-on-warn` then `git diff --exit-code openapi.yaml`: no change; regenerated TS types: no change |
 | Frontend lint, typecheck, test, build | done | eslint, tsc clean; 67 tests passed; build 319 kB JS (100 kB gzipped) |
-| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Since D76, the Playwright tests check this in CI's `docker` job (passed locally 13/13; not yet run in CI) |
+| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Since D76, the Playwright tests check this in CI's `docker` job (merged in PR #9) |
 | Swagger UI works with "Authorize" | done | Authorize with a real token, then `GET /users/me` in Swagger UI: 200, 0 console messages |
 | README: setup, architecture, decisions, known limits, tests | done | Sections Quick start, Architecture, Decisions (ADR table), Testing, Known limits and next steps |
 | `GENAI.md` complete and honest | done | Prompts, sample, validation table, 55 logged mistakes, findings, edge cases, performance |
