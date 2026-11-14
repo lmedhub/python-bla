@@ -51,3 +51,7 @@ def cron(name: str, default: str) -> crontab:
         raise ImproperlyConfigured(
             f'Environment variable {name} must be a 5-field cron expression, like "0 8 * * *".'
         ) from error
+
+
+def optional_bool(name: str, default: bool) -> bool:
+    raise NotImplementedError
