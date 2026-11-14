@@ -40,7 +40,7 @@ decision taken after HANDOFF was written.
 | D17 | "interfaces must not use the ORM" is enforced by ruff TID251, because import-linter cannot forbid `django.db` (an external subpackage) | `apps/*/interfaces/ruff.toml` |
 | D18 | No migrations in Phase 0, so the custom User model can be the first migration in Phase 2 | — |
 | D19 | No `.dockerignore` yet: there is no Dockerfile until the API image is built (added with the images: `backend/.dockerignore`, `frontend/.dockerignore`) | Phase 6 |
-| D20 | Red commits contain **typed stubs** (`raise NotImplementedError`), so tests fail on behavior and the pre-commit mypy hook still passes. Hooks are never skipped | `docs/GENAI.md` |
+| D20 | Red commits contain **typed stubs** (`raise NotImplementedError`), so tests fail on behavior and the pre-commit mypy hook still passes. Hooks are never skipped | `GENAI.md` |
 | D21 | Shared errors `InvalidInputError` (400), `PermissionDeniedError` (403), `NotFoundError` (404) in `apps/core/domain`. Renamed from the planned `ValidationFailed` etc. (ruff N818, and no clash with Django/DRF names) | ADR 0008 |
 | D22 | A page past the end returns 200 with empty `results` and the real `count` | `application/queries.py` |
 | D23 | The assignee's permission is judged on fields that actually **change**, so re-sending an unchanged title with a status change is allowed. Permission is checked before validation | `domain/task.py`, ADR 0008 |
@@ -97,6 +97,7 @@ decision taken after HANDOFF was written.
 | D74 | **New dev dependency `@playwright/test` 1.64.1** (the newest release over two weeks old), approved by the user. Browser tests run through nginx in CI's `docker` job, Chromium only. Swagger UI "Authorize" stays a manual check (its markup is not ours) | ADR 0016, `frontend/e2e/`, `.github/workflows/ci.yml` |
 | D75 | Each spec file signs in once and shares a page: login allows 5 a minute per IP, and the rotating refresh token rules out a saved session. The wrong-password case stays in the unit tests, to keep the run at 3 sign-ins (4 with the smoke test) | ADR 0016, `frontend/e2e/support.ts` |
 | D76 | Every browser test fails on a console warning, console error or uncaught exception, turning HANDOFF's "zero console warnings" into a CI check | `frontend/e2e/support.ts` |
+| D77 | **`GENAI.md` moves to the repo root**, and the repo has no symlinks. Both come from the reviewers' email, which overrides HANDOFF's `docs/GENAI.md`. Checked: no symlinks tracked now or anywhere in git history (`git ls-files -s`, `git log --all --raw`, mode `120000`) | `GENAI.md` |
 
 ## Definition of done (HANDOFF §13)
 
@@ -113,7 +114,7 @@ Checked item by item at the end of Phase 7 (2026-11-14), on branch `phase-7`.
 | No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Since D76, the Playwright tests check this in CI's `docker` job (passed locally 13/13; not yet run in CI) |
 | Swagger UI works with "Authorize" | done | Authorize with a real token, then `GET /users/me` in Swagger UI: 200, 0 console messages |
 | README: setup, architecture, decisions, known limits, tests | done | Sections Quick start, Architecture, Decisions (ADR table), Testing, Known limits and next steps |
-| `docs/GENAI.md` complete and honest | done | Prompts, sample, validation table, 55 logged mistakes, findings, edge cases, performance |
+| `GENAI.md` complete and honest | done | Prompts, sample, validation table, 55 logged mistakes, findings, edge cases, performance |
 | "Known limits" lists real weaknesses and next steps | done | README and the list below; security items in docs/security-review.md |
 
 ## Known limits (so far)

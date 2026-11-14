@@ -243,4 +243,4 @@ and delete their own task; seeded data is only read.
 - [docs/adr/](docs/adr/): architecture decision records
 - [docs/explain.md](docs/explain.md): query plans for the task list, before and after its index
 - [docs/security-review.md](docs/security-review.md): what was checked, fixed and accepted
-- [docs/GENAI.md](docs/GENAI.md): how AI was used, how its output was checked, and its mistakes
+- [GENAI.md](GENAI.md): how AI was used, how its output was checked, and its mistakes

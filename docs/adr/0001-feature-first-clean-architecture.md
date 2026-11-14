@@ -28,7 +28,7 @@ erode quickly, especially with generated code.
 ## Consequences
 
 - A broken rule fails the build. This was shown with a deliberate bad import
-  (see `docs/GENAI.md`).
+  (see `GENAI.md`).
 - import-linter cannot forbid a subpackage of an external package (`django.db`),
   so that one rule lives in ruff instead.
 - More files than a typical Django app. Each one has a single job.
