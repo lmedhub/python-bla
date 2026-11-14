@@ -2,7 +2,7 @@
 BACKEND := cd backend &&
 FRONTEND := cd frontend &&
 
-.PHONY: up down test test-backend test-frontend lint lint-backend lint-frontend schema openapi types seed fresh
+.PHONY: up down test test-backend test-frontend e2e lint lint-backend lint-frontend schema openapi types seed fresh
 
 up:
 	docker compose up -d --build
@@ -17,6 +17,12 @@ test-backend:
 
 test-frontend:
 	$(FRONTEND) npm test
+
+# Browser tests against the running stack (make up first). They sign in 3 times and login
+# allows 5 a minute per IP, so wait a minute between runs.
+e2e:
+	$(FRONTEND) npx playwright install chromium
+	export DEMO_PASSWORD="$$(grep '^DEMO_PASSWORD=' .env | cut -d= -f2)" && $(FRONTEND) npm run e2e
 
 lint: lint-backend lint-frontend
 

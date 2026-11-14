@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
@@ -11,6 +11,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // Playwright runs these in a real browser against the whole stack (npm run e2e).
+    exclude: [...configDefaults.exclude, "e2e/**"],
     // West of UTC, so a date shown one day early (the classic "new Date('2026-11-12')" bug)
     // fails the tests instead of only users in the Americas.
     env: { TZ: "America/Sao_Paulo" },

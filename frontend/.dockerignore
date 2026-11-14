@@ -4,3 +4,5 @@ dist
 *.tsbuildinfo
 Dockerfile
 .dockerignore
+test-results
+playwright-report
