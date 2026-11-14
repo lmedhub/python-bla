@@ -53,5 +53,14 @@ def cron(name: str, default: str) -> crontab:
         ) from error
 
 
+_TRUE = {"true", "1"}
+_FALSE = {"false", "0"}
+
+
 def optional_bool(name: str, default: bool) -> bool:
-    raise NotImplementedError
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    if value in _TRUE | _FALSE:
+        return value in _TRUE
+    raise ImproperlyConfigured(f"Environment variable {name} must be true or false.")
