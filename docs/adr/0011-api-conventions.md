@@ -30,7 +30,8 @@ that consumes them. They are recorded together here.
    proxy without trusting `Host` / `X-Forwarded-*` headers.
 7. **Users are ids in task responses** (`created_by`, `assignee`). Names come from `GET /users`,
    which the assignee picker loads anyway. The list cannot have an N+1 problem.
-8. **`is_overdue` comes from the server's clock**, so all clients agree.
+8. **`is_overdue` uses the caller's "today"**: the server's clock in the zone from the
+   `X-Timezone` header (ADR 0007 amendment, D42), so two users can see different values.
 9. **OpenAPI is strict**: generated with `--validate --fail-on-warn`, committed as
    `openapi.yaml`, and CI fails when it is out of date. Swagger UI and ReDoc load **pinned**
    asset versions (drf-spectacular's default is `@latest`).

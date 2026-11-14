@@ -5,7 +5,7 @@ output was checked, and where it was wrong. Kept up to date phase by phase.
 
 ## 1. The prompts
 
-**Instructions file.** [HANDOFF.md](../HANDOFF.md) holds the full scope, the locked stack, the
+**Instructions file.** [HANDOFF.md](HANDOFF.md) holds the full scope, the locked stack, the
 architecture rules, the phases and the definition of done. The agent reads it through
 `CLAUDE.md`.
 
@@ -74,6 +74,12 @@ Working rules for the whole project:
 - After Phase 7: `is there e2e test coverage?` The agent answered from the repo (API tests, MSW
   unit tests, the smoke test; the browser walk was a throwaway script), proposed a Playwright
   suite, and the user answered its two questions: no Swagger test, Chromium only.
+- Before the e2e PR: `check if documentation match what was done`. The agent ran three
+  reviewer subagents in parallel (README and architecture, ADRs, PLAN and GENAI), checked each
+  finding against the code itself, and fixed 21 drifted statements on a separate branch.
+- From the reviewers' email: no symlinks, and the GenAI answer in `GENAI.md` at the repo root.
+  The agent checked the index and the whole git history for symlinks (none) and moved this file
+  from `docs/` (D77).
 
 ## 2. Sample output
 
@@ -86,7 +92,7 @@ the agent's gap list:
 > meets "configurable schedule" with no extra dependency.
 
 A representative code sample, the composition root, which is the only place where
-interfaces may reach infrastructure ([container.py](../backend/apps/core/interfaces/container.py)):
+interfaces may reach infrastructure ([container.py](backend/apps/core/interfaces/container.py)):
 
 ```python
 """Composition root: the only interfaces module allowed to import infrastructure."""
@@ -127,9 +133,9 @@ def health_report() -> HealthReport:
 | Clean clone (Phase 6) | `git clone` into a scratch folder, `cp .env.example .env`, `docker compose up --build --wait` under a separate project name and ports: every service healthy in about 150 s, "Seeded 4 users and 30 tasks", smoke test 7/7, nginx as uid 101 |
 | Real browser (Phase 6) | Same 13-step walk through nginx and the strict CSP: 0 console messages, 0 responses at or above 400 (the signed-out 401 is gone). Swagger UI: Authorize with a real token, then "Try it out" on `GET /users/me` answers 200, 0 console messages |
 | Diagrams (Phase 6) | Every mermaid block in `docs/architecture.md` and the README parsed and rendered with mermaid 12.3.0 in a real browser before committing |
-| Query plans (Phase 7) | `EXPLAIN (ANALYZE, BUFFERS)` on 100,000 seeded tasks, for the SQL captured from the real repository, before and after the index; the documented reproduction run again from scratch ([explain.md](explain.md)). A test checks the plan of the default list query |
+| Query plans (Phase 7) | `EXPLAIN (ANALYZE, BUFFERS)` on 100,000 seeded tasks, for the SQL captured from the real repository, before and after the index; the documented reproduction run again from scratch ([explain.md](docs/explain.md)). A test checks the plan of the default list query |
 | Image scan (Phase 7) | Trivy 0.76.1 on freshly built images, before and after the distro updates: web 13 → 0 HIGH/CRITICAL; backend left with only findings Debian has not fixed. `npm audit` with and without dev dependencies |
-| Deploy check (Phase 7) | `manage.py check --deploy` with prod settings: 4 warnings, one fixed test-first (framing), three explained in [security-review.md](security-review.md) |
+| Deploy check (Phase 7) | `manage.py check --deploy` with prod settings: 4 warnings, one fixed test-first (framing), three explained in [security-review.md](docs/security-review.md) |
 | Clean clone (Phase 7) | Fresh clone of `phase-7`, `.env.example`, separate project and ports: healthy in 57 s (cached layers), seeded, smoke test 7/7, both images non-root; headers, cookie flags and the login 429 checked with `curl` |
 | Real browser (Phase 7) | The 13-step walk through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Swagger Authorize → `GET /users/me` 200, 0 console messages |
 | Browser tests (after Phase 7) | The throwaway walk became 13 Playwright tests, run against a clean-clone stack on spare ports: 13 passed in 9.8 s, twice. They pass on code that already worked, so the console check was proven by breaking it: a temporary `console.warn("probe")` in one test made it fail with `"warning: probe"`. Frontend image rebuilt with the new files (`tsc -b` covers them); `npm audit` unchanged |
@@ -195,6 +201,7 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 52 | 7 | Ran the smoke test against the clean clone without exporting `DEMO_PASSWORD`, so the sign-in step sent a blank password | The smoke test's own failure (400, "may not be blank") | Exported it from `.env`, as CI does: 7/7 |
 | 53 | + | The e2e plan said Vitest only picks up `*.test.*` files, so the Playwright `*.spec.ts` files would stay out of the unit run. Vitest's default `include` matches `*.spec.*` too | Checking Vitest's defaults while wiring the config, before the first run | `exclude: [...configDefaults.exclude, "e2e/**"]` in `vite.config.ts` |
 | 54 | + | Removed the temporary `console.warn` probe with `git checkout --`, which does nothing to an untracked file; the probe stayed in the spec | The editor's notice that the file still had the line, then `grep` | Deleted the line; `grep -c probe` returns 0 |
+| 55 | + | PLAN said CI repeats the clean-clone run "on every push", and that the browser tests check the console "on every push". CI runs on pull requests and pushes to `main` only, and the browser tests had not run in CI yet | A doc-against-code audit before the e2e PR | The wording now names the real triggers and says the browser tests passed locally, not yet in CI |
 
 ## 5. Findings that changed the plan
 
@@ -250,7 +257,7 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
   is lower case (`c:\`), because modules load twice. Running from `C:\` works (README).
 - Phase 5: jsdom has no `<dialog>.showModal()`.
 - Phase 5: browsers print every 4xx response in the console, so an expected 401 still shows as an
-  error line (PLAN open question).
+  error line (resolved by D64: no cookie now answers 204).
 - Phase 6: a status code can remove a console error. "Nobody is signed in" is not a failure, so
   refresh without a cookie now says 204; a present but bad cookie is still 401.
 - Phase 6: exposing the API port next to nginx would let any client send its own
@@ -332,8 +339,9 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
   related objects, so an N+1 cannot happen in the repository.
 - **Indexes**: `(due_date, id)` matches the list order, so every page is read from the index
   and stops at the `LIMIT`; `(status, due_date)` serves the status count; Django adds the foreign
-  key indexes. Measured on 100,000 tasks, before and after ([explain.md](explain.md), ADR 0015).
-  A partial index for overdue tasks was measured and rejected (under 1 ms gained).
+  key indexes. Measured on 100,000 tasks, before and after ([explain.md](docs/explain.md), ADR 0015).
+  A partial index for overdue tasks was measured and rejected (under 1 ms on the count, about
+  5 ms on the daily digest).
 - **Constraints in the database**, not only in Python: status, title and `completed_at` rules
   hold even for raw SQL or a future bulk script.
 - **Locking**: optimistic, with a single conditional `UPDATE`, so reads never block (ADR 0010).

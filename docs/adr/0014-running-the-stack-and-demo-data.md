@@ -19,7 +19,7 @@ run as non-root users.
   trusts exactly one proxy (`NUM_PROXIES=1`). A published API port would let a client send its
   own `X-Forwarded-For` and dodge the rate limits.
 - App routes fall back to `index.html`. Hashed assets are cached for a year; `index.html` is
-  never cached. The app's pages get a strict Content-Security-Policy (`default-src 'self'`),
+  revalidated on every load (`no-cache`). The app's pages get a strict Content-Security-Policy (`default-src 'self'`),
   `nosniff` and `Referrer-Policy`. Swagger UI under `/api/` loads its scripts from a CDN, so
   nginx leaves those responses alone.
 
