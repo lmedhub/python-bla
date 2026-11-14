@@ -59,13 +59,30 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      # One image runs the API, the Celery worker and beat. Building it here catches a broken
-      # Dockerfile or lockfile before anyone runs docker compose.
-      - name: Build the backend image
-        run: docker build --tag taskmanager-backend backend
+      # HANDOFF's definition of done: a clean checkout plus .env.example gives a working app
+      # with demo data. Builds both images, then waits for every healthcheck.
+      - name: Start the whole stack from a clean checkout
+        run: |
+          cp .env.example .env
+          docker compose up --build --detach --wait --wait-timeout 300
 
-      - name: The image runs as a non-root user
-        run: test "$(docker run --rm taskmanager-backend id -u)" != "0"
+      - name: Both images run as non-root users
+        run: |
+          test "$(docker compose exec -T api id -u)" != "0"
+          test "$(docker compose exec -T web id -u)" != "0"
+
+      - name: Smoke test through nginx
+        run: |
+          export DEMO_PASSWORD="$(grep '^DEMO_PASSWORD=' .env | cut -d= -f2)"
+          python3 scripts/smoke_test.py http://localhost:8080
+
+      - name: Show the logs if anything failed
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop
+        if: always()
+        run: docker compose down --volumes
 
   frontend:
     runs-on: ubuntu-latest
