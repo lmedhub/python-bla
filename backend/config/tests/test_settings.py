@@ -134,3 +134,17 @@ def test_email_host_is_required(environment):
 
     with pytest.raises(ImproperlyConfigured, match="EMAIL_HOST"):
         _load("config.settings.prod")
+
+
+def test_the_refresh_cookie_is_secure_by_default(environment):
+    environment.delenv("REFRESH_COOKIE_SECURE", raising=False)
+
+    assert _load("config.settings.prod").REFRESH_COOKIE_SECURE is True
+
+
+def test_the_refresh_cookie_can_be_sent_over_plain_http_when_configured(environment):
+    # For a demo on plain http that is not localhost, or Safari, which ignores the
+    # localhost exception for Secure cookies.
+    environment.setenv("REFRESH_COOKIE_SECURE", "false")
+
+    assert _load("config.settings.prod").REFRESH_COOKIE_SECURE is False

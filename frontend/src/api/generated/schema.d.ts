@@ -55,7 +55,7 @@ export interface paths {
         put?: never;
         /**
          * Get a new access token
-         * @description Uses and rotates the refresh cookie. Answers like login, so a page reload can restore the session with one call.
+         * @description Uses and rotates the refresh cookie. Answers like login, so a page reload can restore the session with one call. Without a cookie there is no session to restore: 204, not an error.
          */
         post: operations["auth_refresh_create"];
         delete?: never;
@@ -386,6 +386,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Session"];
                 };
+            };
+            /** @description No refresh cookie: nobody is signed in. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Missing, expired or invalid credentials. */
             401: {

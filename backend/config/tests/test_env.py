@@ -2,7 +2,15 @@ import pytest
 from celery.schedules import crontab
 from django.core.exceptions import ImproperlyConfigured
 
-from config.env import MIN_SECRET_KEY_LENGTH, cron, csv, optional_int, required, secret_key
+from config.env import (
+    MIN_SECRET_KEY_LENGTH,
+    cron,
+    csv,
+    optional_bool,
+    optional_int,
+    required,
+    secret_key,
+)
 
 
 def test_required_returns_the_value(monkeypatch):
@@ -89,3 +97,25 @@ def test_cron_rejects_a_bad_expression(monkeypatch, value):
 
     with pytest.raises(ImproperlyConfigured, match="SOME_CRON"):
         cron("SOME_CRON", default="0 8 * * *")
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"), [("true", True), ("1", True), ("False", False), ("0", False)]
+)
+def test_optional_bool_reads_true_and_false(monkeypatch, raw, expected):
+    monkeypatch.setenv("SOME_FLAG", raw)
+
+    assert optional_bool("SOME_FLAG", default=not expected) is expected
+
+
+def test_optional_bool_uses_the_default_when_missing(monkeypatch):
+    monkeypatch.delenv("SOME_FLAG", raising=False)
+
+    assert optional_bool("SOME_FLAG", default=True) is True
+
+
+def test_optional_bool_rejects_anything_else(monkeypatch):
+    monkeypatch.setenv("SOME_FLAG", "yes please")
+
+    with pytest.raises(ImproperlyConfigured, match="SOME_FLAG"):
+        optional_bool("SOME_FLAG", default=True)

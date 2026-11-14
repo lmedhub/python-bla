@@ -106,11 +106,14 @@ class TestRefresh:
         assert response.status_code == 401
         assert response.json()["code"] == "not_authenticated"
 
-    def test_no_cookie_is_401(self, api_client):
+    def test_no_cookie_means_no_session_and_is_not_an_error(self, api_client):
+        # Every signed-out page load asks once. Browsers print each 4xx in the console,
+        # so "nobody is signed in" is a 204, not a 401.
         response = api_client.post(REFRESH)
 
-        assert response.status_code == 401
-        assert response["WWW-Authenticate"].startswith("Bearer")
+        assert response.status_code == 204
+        assert response.content == b""
+        assert COOKIE not in response.cookies
 
     def test_a_tampered_token_is_401(self, api_client, alice):
         token = login(api_client).cookies[COOKIE].value

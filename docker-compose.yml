@@ -13,6 +13,8 @@ x-backend: &backend
     EMAIL_HOST: mailpit
     EMAIL_PORT: "1025"
     ALLOWED_HOSTS: localhost,127.0.0.1
+    # nginx (the web service) is the one proxy in front of Django.
+    NUM_PROXIES: "1"
   # A stopped container's name stops resolving, and the default resolver then waits 8 s
   # per lookup, which socket timeouts do not cover. Fail a lookup in about 1 s instead,
   # so a Redis outage slows requests a little rather than hanging them (ADR 0005).
@@ -54,10 +56,10 @@ services:
       - "${MAILPIT_SMTP_PORT:-1025}:1025"
       - "${MAILPIT_UI_PORT:-8025}:8025"
 
+  # Reached only through nginx (web): no host port, so nobody can skip the proxy and send
+  # their own X-Forwarded-For to dodge the rate limits. Local runserver uses :8000 instead.
   api:
     <<: *backend
-    ports:
-      - "${API_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -99,6 +101,22 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+  # The app: http://localhost:8080 (Swagger UI: /api/v1/docs).
+  web:
+    build: ./frontend
+    image: taskmanager-web
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   pgdata:

@@ -14,13 +14,9 @@ export function signedInAs(user: User = alice) {
   );
 }
 
-/** No refresh cookie: a page load shows the login page. */
+/** No refresh cookie: the API answers 204, and a page load shows the login page. */
 export function signedOut() {
-  server.use(
-    http.post("/api/v1/auth/refresh", () =>
-      HttpResponse.json(errorBody("not_authenticated", "No session."), { status: 401 }),
-    ),
-  );
+  server.use(http.post("/api/v1/auth/refresh", () => new HttpResponse(null, { status: 204 })));
 }
 
 /** GET /tasks answers with `tasks` (and `count`, for paging); returns the URLs requested. */

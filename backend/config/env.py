@@ -51,3 +51,16 @@ def cron(name: str, default: str) -> crontab:
         raise ImproperlyConfigured(
             f'Environment variable {name} must be a 5-field cron expression, like "0 8 * * *".'
         ) from error
+
+
+_TRUE = {"true", "1"}
+_FALSE = {"false", "0"}
+
+
+def optional_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    if value in _TRUE | _FALSE:
+        return value in _TRUE
+    raise ImproperlyConfigured(f"Environment variable {name} must be true or false.")

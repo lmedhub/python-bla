@@ -40,8 +40,9 @@ openapi:
 types:
 	$(FRONTEND) npm run generate:api
 
+# Demo data, if the database has no users yet (the API container also does this on start).
 seed:
-	@echo "seed: added in Phase 6" && exit 1
+	docker compose exec api python manage.py seed_demo
 
 fresh:
 	docker compose down -v

@@ -64,8 +64,9 @@ paths:
   /api/v1/auth/refresh:
     post:
       operationId: auth_refresh_create
-      description: Uses and rotates the refresh cookie. Answers like login, so a page
-        reload can restore the session with one call.
+      description: 'Uses and rotates the refresh cookie. Answers like login, so a
+        page reload can restore the session with one call. Without a cookie there
+        is no session to restore: 204, not an error.'
       summary: Get a new access token
       tags:
       - auth
@@ -76,6 +77,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Session'
           description: ''
+        '204':
+          description: 'No refresh cookie: nobody is signed in.'
         '401':
           content:
             application/json:

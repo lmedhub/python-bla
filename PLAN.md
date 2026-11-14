@@ -12,8 +12,8 @@ decision taken after HANDOFF was written.
 | 2 | Infrastructure: custom User first, Task model, migrations, repositories | done (PR #3) |
 | 3 | Interfaces: auth, tasks API, throttling, OpenAPI, `openapi.yaml` | done (PR #4) |
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | done (PR #5) |
-| 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | in review (branch `phase-5`) |
-| 6 | nginx + frontend image, seed, full CI, README, architecture doc | not started |
+| 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | done (PR #6) |
+| 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | in review (branch `phase-6`) |
 | 7 | Hardening: EXPLAIN, security review, console check, clean clone | not started |
 
 ## Decisions and deviations
@@ -83,6 +83,13 @@ decision taken after HANDOFF was written.
 | D61 | The status toggle sends no `version`; the edit form does | ADR 0013 |
 | D62 | Dates are formatted in the browser's language (`navigator.language`), not the OS default | `src/lib/dates.ts` |
 | D63 | Makefile: `lint`, `test`, `schema` cover both sides; `lint-backend`, `test-frontend`, `openapi`, `types` and so on cover one. CI's backend job uses the backend-only targets | `Makefile` |
+| D64 | `POST /auth/refresh` without any cookie answers **204** (no session), not 401, so a signed-out visit logs nothing in the console. A bad cookie is still 401 (user's choice "1a") | ADR 0003 (amended) |
+| D65 | `REFRESH_COOKIE_SECURE` comes from the environment, default `true` | `config/settings/environment.py` |
+| D66 | Demo data: `seed_demo` in its own `apps/demo` app (nothing may import it), only on an empty database, at startup only with `SEED_DEMO=true`; password from `DEMO_PASSWORD` | ADR 0014 |
+| D67 | nginx (`web`, non-root) is the only entry point; `api` has no host port; `NUM_PROXIES=1` in compose | ADR 0014 |
+| D68 | CSP and security headers on the app's pages only; Swagger UI under `/api/` is left to Django because it loads its scripts from a CDN | `frontend/nginx.conf` |
+| D69 | CI's `docker` job starts the whole stack from a clean checkout with `.env.example` and runs `scripts/smoke_test.py` through nginx. Schemathesis (optional in HANDOFF) is not added | `.github/workflows/ci.yml` |
+| D70 | The smoke test is plain Python (standard library), so it runs on the CI runner and on Windows without `jq` | `scripts/smoke_test.py` |
 
 ## Known limits (so far)
 
@@ -106,16 +113,11 @@ decision taken after HANDOFF was written.
   ESLint; `npm audit --omit=dev` is clean.
 - jsdom has no `<dialog>.showModal()`: tests stub it; focus and Esc are checked in a real browser.
 - On Windows, Vitest must run from an upper-case drive path (README).
+- The demo password is in `.env.example` and the README; it protects demo data only.
+- The digest uses the UTC date; a scheduled job has no caller time zone.
 - `nulls_last=True` in the list order cannot be tested on Postgres, which already sorts NULLs last
   for ascending order (an "equivalent mutant"). It is kept for intent and portability.
 
 ## Open questions
 
-- **The 401 on a signed-out page load.** The app calls `POST /auth/refresh` once at startup to
-  restore a session. With no session it answers 401, and browsers print every 4xx response in the
-  console. It is the only console line in the browser check. Options: (a) refresh without any
-  cookie answers 204 "no session" (an expired or tampered cookie stays 401); (b) the frontend keeps
-  a "had a session" flag in `localStorage` and skips the call without it; (c) accept and document.
-
-- **Refresh cookie is `Secure`:** a browser on plain `http://` other than localhost (and Safari
-  even on localhost) will not send it. Phase 6 makes `REFRESH_COOKIE_SECURE` an env setting.
+- None open. (The signed-out refresh 401 was resolved by D64; the `Secure` cookie by D65.)

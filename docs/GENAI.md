@@ -63,6 +63,8 @@ Working rules for the whole project:
   in the user-level `~/.npmrc`, and proposed a project `.npmrc` instead of refreshing the token.
 - Phase 5: `go` on a plan with five questions (MSW, pages, browser check, CSS Modules, coverage
   gate); every recommended default was taken.
+- Phase 6: `1a, go`: the user chose to answer a cookie-less refresh with 204, then approved the
+  Phase 6 plan with its recommended defaults (demo app, no API host port, CI stack job).
 
 ## 2. Sample output
 
@@ -113,6 +115,9 @@ def health_report() -> HealthReport:
 | Real browser (Phase 5) | A throwaway Playwright script (scratchpad, not a project dependency) drove the installed Edge through sign in, filter, create, edit, complete, delete (Esc and focus on the dialog), reload, a 320 px viewport, Tab order and sign out, against both the dev server and the production build. All 13 steps passed. Console on the production build: one line, the signed-out refresh 401 (open question in PLAN) |
 | Frontend tests (Phase 5) | Every test fails on a `console.error` / `console.warn` or an unexpected request; the suite runs in `America/Sao_Paulo` to catch date-only bugs |
 | Mutation check (Phase 5) | Replacing the shared refresh (`??=`) with a fresh one per caller fails exactly the "refreshed only once for requests that fail together" test |
+| Clean clone (Phase 6) | `git clone` into a scratch folder, `cp .env.example .env`, `docker compose up --build --wait` under a separate project name and ports: every service healthy in about 150 s, "Seeded 4 users and 30 tasks", smoke test 7/7, nginx as uid 101 |
+| Real browser (Phase 6) | Same 13-step walk through nginx and the strict CSP: 0 console messages, 0 responses at or above 400 (the signed-out 401 is gone). Swagger UI: Authorize with a real token, then "Try it out" on `GET /users/me` answers 200, 0 console messages |
+| Diagrams (Phase 6) | Every mermaid block in `docs/architecture.md` and the README parsed and rendered with mermaid 12.3.0 in a real browser before committing |
 | TDD note (Phase 4) | The Redis-down API test passed already in its red commit, because it uses `CeleryNotifier`, finished one slice earlier. It is a guard, not a driver |
 
 ## 4. Mistakes log
@@ -166,6 +171,10 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 43 | 5 | Restored a mutation with PowerShell `Set-Content`, which rejected its arguments, so the mutation stayed in the file | The error message, then `grep` of the file | Restored with `sed`, checked the line, encoding and line endings, re-ran 30/30. Same lesson as mistake 21: verify the restore |
 | 44 | 5 | Added frontend commands to `make lint` / `make test`, which CI's backend job runs without Node dependencies | Self-review before committing | Split targets (`lint-backend`, `test-frontend`, ...); CI's backend job calls the backend ones |
 | 45 | 5 | No favicon: the browser's automatic `/favicon.ico` request logged a 404 | Browser check | An SVG favicon |
+| 46 | 6 | The first request walkthrough named a view that does not exist (`TaskListView`) and drew the response leaving before the commit; with `ATOMIC_REQUESTS` the commit and the `on_commit` publish happen first | Self-review against the code before committing | `TaskCollectionView`, and commit → publish → response |
+| 47 | 6 | Put a `;` inside a mermaid sequence-diagram message, where it ends the statement | Self-review, then all diagrams rendered with mermaid in a browser | A comma |
+| 48 | 6 | A shell heredoc dropped a `\` line continuation in the CI workflow, joining two commands on one line | `cat -A` of the file after a suspicious `grep` | Rewrote the step as two plain lines with `export` |
+| 49 | 6 | The Swagger UI check (throwaway script) assumed accessible names that Swagger UI 5 does not use, so it timed out three times | The script's own timeouts, a screenshot, a list of buttons | Swagger's own CSS classes and operation ids |
 
 ## 5. Findings that changed the plan
 
@@ -222,6 +231,12 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 - Phase 5: jsdom has no `<dialog>.showModal()`.
 - Phase 5: browsers print every 4xx response in the console, so an expected 401 still shows as an
   error line (PLAN open question).
+- Phase 6: a status code can remove a console error. "Nobody is signed in" is not a failure, so
+  refresh without a cookie now says 204; a present but bad cookie is still 401.
+- Phase 6: exposing the API port next to nginx would let any client send its own
+  `X-Forwarded-For` and pick its rate-limit bucket; only nginx is published.
+- Phase 6: demo data cannot go through the use cases (past due dates are refused, emails would
+  be sent), so the seed writes rows directly, in its own app that nothing imports.
 - Phase 4: Celery's `send_task` by name keeps the layers clean. Infrastructure publishes a name;
   only the worker imports the job module.
 
@@ -277,6 +292,9 @@ See ADRs 0003 (JWT), 0005 (Redis down), 0006 (filters), 0007 (due date) and 0008
 | Non-creator opens the edit URL | Explanation, no form | `TaskFormPage.test.tsx` |
 | Assignee / stranger in the list | Edit and Delete disabled; status only for the assignee | `TaskActions.test.tsx` |
 | Delete | Confirmation, focus on Cancel; failure keeps the dialog open with the reason | `TaskActions.test.tsx` |
+| Signed-out page load | Refresh without a cookie: 204, nothing in the console | `test_auth_api.py`, `session.test.ts`, smoke test |
+| Seed on a database with users | Nothing changes | `test_seed_demo.py` |
+| Bad `REFRESH_COOKIE_SECURE` value | Startup fails with the variable's name | `test_env.py` |
 | Bad `X-Timezone` | Unknown, path-like (`../../etc/passwd`), offset (`UTC+3`), blank or folder (`America`) names give 400 on the header, never 500 | `test_requests.py` |
 
 ## 7. Performance and idiomatic quality
