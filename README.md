@@ -152,7 +152,7 @@ npm run dev        # http://localhost:5173, proxies /api to runserver on :8000
 TypeScript types are generated from it. `make schema` regenerates both. CI fails if either is out
 of date.
 
-## Tests and checks
+## Testing
 
 Postgres and Redis must be running for the backend tests (`docker compose up -d db redis`).
 
