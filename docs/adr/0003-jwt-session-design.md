@@ -1,6 +1,6 @@
 # 0003. JWT session design
 
-- Status: accepted. Backend done in Phase 3; the frontend part comes in Phase 5
+- Status: accepted. Backend in Phase 3, frontend in Phase 5; amended in Phase 6 (no cookie → 204)
 - Date: 2026-11-11
 
 ## Context
@@ -32,6 +32,16 @@ nginx serves the frontend and the API from the same origin.
   `Bearer` challenge themselves to keep 401.
 - simplejwt annotates `Token(token=...)` as `Token | None` but takes the encoded string. There is one
   targeted `type: ignore[arg-type]` with a comment.
+
+## Amendment (Phase 6): no cookie is 204, not 401
+
+- `POST /auth/refresh` **without any refresh cookie** answers `204 No Content`: nobody is
+  signed in, which is the normal state of a first visit. A cookie that is present but expired,
+  tampered or blacklisted is still `401`.
+- Why: the frontend calls refresh on every page load to restore a session. Browsers print every
+  4xx response in the console, so each signed-out visit showed an error line, and HANDOFF asks
+  for no console errors. The status code now says what happened: no session, not a failure.
+- The frontend already treated an empty answer as "no session"; only its tests changed.
 
 ## Consequences
 

@@ -120,11 +120,17 @@ describe("refreshSession", () => {
     await expect(listUsers()).resolves.toEqual([alice]);
   });
 
-  it("returns null when there is no valid cookie", async () => {
+  it("returns null when there is no cookie (204)", async () => {
+    server.use(http.post(REFRESH, () => new HttpResponse(null, { status: 204 })));
+
+    await expect(refreshSession()).resolves.toBeNull();
+  });
+
+  it("returns null when the cookie has expired (401)", async () => {
     server.use(
       http.post(REFRESH, () =>
         HttpResponse.json(
-          { code: "not_authenticated", detail: "No session.", fields: {} },
+          { code: "not_authenticated", detail: "Session expired.", fields: {} },
           { status: 401 },
         ),
       ),

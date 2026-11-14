@@ -11,7 +11,7 @@ from django.contrib.auth import authenticate
 from django.core.exceptions import ObjectDoesNotExist
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -75,15 +75,22 @@ class RefreshView(_CredentialView):
     @extend_schema(
         summary="Get a new access token",
         description="Uses and rotates the refresh cookie. Answers like login, so a page "
-        "reload can restore the session with one call.",
+        "reload can restore the session with one call. Without a cookie there is no session "
+        "to restore: 204, not an error.",
         auth=[],
         request=None,
-        responses={200: SessionSerializer, **error_responses(401, 429)},
+        responses={
+            200: SessionSerializer,
+            204: OpenApiResponse(description="No refresh cookie: nobody is signed in."),
+            **error_responses(401, 429),
+        },
     )
     def post(self, request: Request) -> Response:
         cookie = request.COOKIES.get(settings.REFRESH_COOKIE_NAME)
         if not cookie:
-            raise NotAuthenticated(SESSION_EXPIRED)
+            # A signed-out visitor is the normal case, and browsers log every 4xx in the
+            # console. A cookie that is present but bad is still a 401 below.
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         rotation = TokenRefreshSerializer(data={"refresh": cookie})
         try:

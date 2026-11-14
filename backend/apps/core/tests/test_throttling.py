@@ -46,7 +46,7 @@ def test_behind_a_proxy_each_client_ip_gets_its_own_login_limit(api_client, sett
 def test_anonymous_callers_get_20_requests_a_minute(api_client):
     statuses = [api_client.post(REFRESH).status_code for _ in range(21)]
 
-    assert statuses == [401] * 20 + [429]
+    assert statuses == [204] * 20 + [429]
 
 
 def test_signed_in_users_get_100_requests_a_minute(login_as):
