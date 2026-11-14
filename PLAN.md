@@ -14,7 +14,7 @@ decision taken after HANDOFF was written.
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | done (PR #5) |
 | 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | done (PR #6) |
 | 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | done (PR #7) |
-| 7 | Hardening: EXPLAIN, security review, console check, clean clone | in progress (branch `phase-7`) |
+| 7 | Hardening: EXPLAIN, security review, console check, clean clone | in review (branch `phase-7`) |
 
 ## Decisions and deviations
 
@@ -93,6 +93,24 @@ decision taken after HANDOFF was written.
 | D71 | **New index `(due_date, id)`** for the list order (EXPLAIN: full sort before). No partial index for overdue (measured, under 1 ms gained). The data script is committed so the numbers can be reproduced | ADR 0015, `docs/explain.md`, `scripts/explain_list.sql` |
 | D72 | Runtime images apply their distro's security updates at build time (`apt-get upgrade`, `apk upgrade`): no newer base tag had the fixes. Debian CVEs with no fix are documented, not worked around. Scanned with Trivy (Docker Scout needs a login) | `backend/Dockerfile`, `frontend/Dockerfile`, `docs/security-review.md` |
 | D73 | Django sends `X-Frame-Options: DENY` (Swagger UI and ReDoc are outside nginx's CSP). CSRF middleware, HSTS and the HTTPS redirect stay off, for the reasons in the security review | `config/settings/base.py`, `docs/security-review.md` |
+
+## Definition of done (HANDOFF §13)
+
+Checked item by item at the end of Phase 7 (2026-11-14), on branch `phase-7`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| `docker compose up --build` from a clean clone gives a working app with demo data | done | Fresh clone, `.env.example`, separate project: every service healthy, "Seeded 4 users and 30 tasks", smoke test 7/7. CI's `docker` job repeats this on every push |
+| Demo credentials in the README | done | README "Demo users": four accounts, one password |
+| ruff, mypy, import-linter | done | ruff check and format clean; mypy: no issues in 139 files; 6 contracts kept |
+| pytest, at least 90% coverage | done | 353 passed, 99.84% (gate `--cov-fail-under=90`) |
+| Schema drift | done | `spectacular --validate --fail-on-warn` then `git diff --exit-code openapi.yaml`: no change; regenerated TS types: no change |
+| Frontend lint, typecheck, test, build | done | eslint, tsc clean; 67 tests passed; build 319 kB JS (100 kB gzipped) |
+| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400 |
+| Swagger UI works with "Authorize" | done | Authorize with a real token, then `GET /users/me` in Swagger UI: 200, 0 console messages |
+| README: setup, architecture, decisions, known limits, tests | done | Sections Quick start, Architecture, Decisions (ADR table), Tests and checks, Known limits and next steps |
+| `docs/GENAI.md` complete and honest | done | Prompts, sample, validation table, 52 logged mistakes, findings, edge cases, performance |
+| "Known limits" lists real weaknesses and next steps | done | README and the list below; security items in docs/security-review.md |
 
 ## Known limits (so far)
 

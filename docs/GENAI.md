@@ -65,6 +65,12 @@ Working rules for the whole project:
   gate); every recommended default was taken.
 - Phase 6: `1a, go`: the user chose to answer a cookie-less refresh with 204, then approved the
   Phase 6 plan with its recommended defaults (demo app, no API host port, CI stack job).
+- Sessions: from Phase 4, each session ended with the agent writing `SESSION_HANDOFF.md`
+  (state, next steps, environment gotchas; not committed), and the next session started with
+  only its name as the prompt. This kept each session's context small.
+- Phase 7: `go` without answers to the plan's three questions. The agent said so and took its
+  recommended defaults: commit the EXPLAIN data script, document unfixed base-image CVEs, and
+  leave the user's own running stack alone (a scratch compose project instead).
 
 ## 2. Sample output
 
@@ -245,6 +251,11 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
   `X-Forwarded-For` and pick its rate-limit bucket; only nginx is published.
 - Phase 6: demo data cannot go through the use cases (past due dates are refused, emails would
   be sent), so the seed writes rows directly, in its own app that nothing imports.
+- Phase 7: the index HANDOFF asked for, `(status, due_date)`, cannot serve the default list
+  order, so the main page sorted the whole table. `EXPLAIN` on 100,000 rows showed it;
+  `(due_date, id)` fixed it, and the partial index HANDOFF suggested was measured and rejected.
+- Phase 7: a base image tag can be weeks behind its distro's security fixes. No newer tag
+  existed, so the runtime images upgrade their packages at build time.
 - Phase 4: Celery's `send_task` by name keeps the layers clean. Infrastructure publishes a name;
   only the worker imports the job module.
 
