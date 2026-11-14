@@ -119,6 +119,10 @@ def health_report() -> HealthReport:
 | Real browser (Phase 6) | Same 13-step walk through nginx and the strict CSP: 0 console messages, 0 responses at or above 400 (the signed-out 401 is gone). Swagger UI: Authorize with a real token, then "Try it out" on `GET /users/me` answers 200, 0 console messages |
 | Diagrams (Phase 6) | Every mermaid block in `docs/architecture.md` and the README parsed and rendered with mermaid 12.3.0 in a real browser before committing |
 | Query plans (Phase 7) | `EXPLAIN (ANALYZE, BUFFERS)` on 100,000 seeded tasks, for the SQL captured from the real repository, before and after the index; the documented reproduction run again from scratch ([explain.md](explain.md)). A test checks the plan of the default list query |
+| Image scan (Phase 7) | Trivy 0.76.1 on freshly built images, before and after the distro updates: web 13 → 0 HIGH/CRITICAL; backend left with only findings Debian has not fixed. `npm audit` with and without dev dependencies |
+| Deploy check (Phase 7) | `manage.py check --deploy` with prod settings: 4 warnings, one fixed test-first (framing), three explained in [security-review.md](security-review.md) |
+| Clean clone (Phase 7) | Fresh clone of `phase-7`, `.env.example`, separate project and ports: healthy in 57 s (cached layers), seeded, smoke test 7/7, both images non-root; headers, cookie flags and the login 429 checked with `curl` |
+| Real browser (Phase 7) | The 13-step walk through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Swagger Authorize → `GET /users/me` 200, 0 console messages |
 | TDD note (Phase 4) | The Redis-down API test passed already in its red commit, because it uses `CeleryNotifier`, finished one slice earlier. It is a guard, not a driver |
 
 ## 4. Mistakes log
@@ -177,6 +181,8 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 48 | 6 | A shell heredoc dropped a `\` line continuation in the CI workflow, joining two commands on one line | `cat -A` of the file after a suspicious `grep` | Rewrote the step as two plain lines with `export` |
 | 49 | 6 | The Swagger UI check (throwaway script) assumed accessible names that Swagger UI 5 does not use, so it timed out three times | The script's own timeouts, a screenshot, a list of buttons | Swagger's own CSS classes and operation ids |
 | 50 | 2 | The model comment (and this log, section 7) said `(status, due_date)` serves the default list order. It cannot: the order has no status filter, so Postgres read and sorted the whole table (14.7 ms for 10 rows of 100,000) | `EXPLAIN (ANALYZE)` on seeded data in Phase 7 | A `(due_date, id)` index (0.04 ms), a test on the real query plan, ADR 0015 |
+| 51 | 7 | Again wrote Windows paths with `\` inside a shell heredoc; the heredoc dropped a backslash and the Python edit script did not parse | The `SyntaxError` | Forward slashes in paths. Same lesson as mistake 48 |
+| 52 | 7 | Ran the smoke test against the clean clone without exporting `DEMO_PASSWORD`, so the sign-in step sent a blank password | The smoke test's own failure (400, "may not be blank") | Exported it from `.env`, as CI does: 7/7 |
 
 ## 5. Findings that changed the plan
 

@@ -204,7 +204,13 @@ What the tests cover:
 - **Validation reports one business rule at a time** (title, then due date, then assignee).
 - **`SentNotification` keeps growing**; a cleanup job is a next step.
 - **Celery beat has no healthcheck.**
-- **Docker's scanner** reports 2 high-severity issues in the Python base image (Phase 7 review).
+- **The Python image still has 47 HIGH findings** (11 CVEs in util-linux, ncurses, SQLite and
+  others) that Debian has not fixed yet; none is reachable from the app
+  ([security review](docs/security-review.md)).
+- **No HSTS or HTTPS redirect in the stack**: TLS is expected to end at a load balancer in
+  front of it, which is where those belong.
+- **Every list request counts the matching rows, and deep pages walk the skipped rows**: 9 ms
+  and 23 ms at 100,000 tasks. Keyset pagination is the next step ([EXPLAIN](docs/explain.md)).
 - More detail, including test-only limits, in [PLAN.md](PLAN.md#known-limits-so-far).
 
 ## Docs
@@ -213,4 +219,6 @@ What the tests cover:
 - [PLAN.md](PLAN.md): phases, decisions and deviations
 - [docs/architecture.md](docs/architecture.md): diagrams and a request walkthrough
 - [docs/adr/](docs/adr/): architecture decision records
+- [docs/explain.md](docs/explain.md): query plans for the task list, before and after its index
+- [docs/security-review.md](docs/security-review.md): what was checked, fixed and accepted
 - [docs/GENAI.md](docs/GENAI.md): how AI was used, how its output was checked, and its mistakes
