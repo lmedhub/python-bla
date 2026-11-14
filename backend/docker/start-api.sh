@@ -3,6 +3,11 @@
 set -e
 
 python manage.py migrate --noinput
+# Demo data on an empty database only, and only where asked for (docker-compose.yml).
+# A real deployment leaves SEED_DEMO unset.
+if [ "$SEED_DEMO" = "true" ]; then
+  python manage.py seed_demo
+fi
 # exec: gunicorn becomes PID 1 and receives Docker's stop signal directly.
 # --no-control-socket: Docker manages the process, so gunicorn's runtime control socket
 # (written under $HOME, which the app user does not have) is not needed.

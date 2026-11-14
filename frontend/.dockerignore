@@ -1,0 +1,6 @@
+# The image builds from source; local installs and builds stay out.
+node_modules
+dist
+*.tsbuildinfo
+Dockerfile
+.dockerignore
