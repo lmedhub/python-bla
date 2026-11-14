@@ -13,6 +13,8 @@ htmlcov/
 # Node
 node_modules/
 dist/
+frontend/test-results/
+frontend/playwright-report/
 
 # Local config and secrets
 .env

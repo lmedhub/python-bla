@@ -71,6 +71,9 @@ Working rules for the whole project:
 - Phase 7: `go` without answers to the plan's three questions. The agent said so and took its
   recommended defaults: commit the EXPLAIN data script, document unfixed base-image CVEs, and
   leave the user's own running stack alone (a scratch compose project instead).
+- After Phase 7: `is there e2e test coverage?` The agent answered from the repo (API tests, MSW
+  unit tests, the smoke test; the browser walk was a throwaway script), proposed a Playwright
+  suite, and the user answered its two questions: no Swagger test, Chromium only.
 
 ## 2. Sample output
 
@@ -129,6 +132,7 @@ def health_report() -> HealthReport:
 | Deploy check (Phase 7) | `manage.py check --deploy` with prod settings: 4 warnings, one fixed test-first (framing), three explained in [security-review.md](security-review.md) |
 | Clean clone (Phase 7) | Fresh clone of `phase-7`, `.env.example`, separate project and ports: healthy in 57 s (cached layers), seeded, smoke test 7/7, both images non-root; headers, cookie flags and the login 429 checked with `curl` |
 | Real browser (Phase 7) | The 13-step walk through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Swagger Authorize → `GET /users/me` 200, 0 console messages |
+| Browser tests (after Phase 7) | The throwaway walk became 13 Playwright tests, run against a clean-clone stack on spare ports: 13 passed in 9.8 s, twice. They pass on code that already worked, so the console check was proven by breaking it: a temporary `console.warn("probe")` in one test made it fail with `"warning: probe"`. Frontend image rebuilt with the new files (`tsc -b` covers them); `npm audit` unchanged |
 | TDD note (Phase 4) | The Redis-down API test passed already in its red commit, because it uses `CeleryNotifier`, finished one slice earlier. It is a guard, not a driver |
 
 ## 4. Mistakes log
@@ -189,6 +193,8 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
 | 50 | 2 | The model comment (and this log, section 7) said `(status, due_date)` serves the default list order. It cannot: the order has no status filter, so Postgres read and sorted the whole table (14.7 ms for 10 rows of 100,000) | `EXPLAIN (ANALYZE)` on seeded data in Phase 7 | A `(due_date, id)` index (0.04 ms), a test on the real query plan, ADR 0015 |
 | 51 | 7 | Again wrote Windows paths with `\` inside a shell heredoc; the heredoc dropped a backslash and the Python edit script did not parse | The `SyntaxError` | Forward slashes in paths. Same lesson as mistake 48 |
 | 52 | 7 | Ran the smoke test against the clean clone without exporting `DEMO_PASSWORD`, so the sign-in step sent a blank password | The smoke test's own failure (400, "may not be blank") | Exported it from `.env`, as CI does: 7/7 |
+| 53 | + | The e2e plan said Vitest only picks up `*.test.*` files, so the Playwright `*.spec.ts` files would stay out of the unit run. Vitest's default `include` matches `*.spec.*` too | Checking Vitest's defaults while wiring the config, before the first run | `exclude: [...configDefaults.exclude, "e2e/**"]` in `vite.config.ts` |
+| 54 | + | Removed the temporary `console.warn` probe with `git checkout --`, which does nothing to an untracked file; the probe stayed in the spec | The editor's notice that the file still had the line, then `grep` | Deleted the line; `grep -c probe` returns 0 |
 
 ## 5. Findings that changed the plan
 
@@ -256,6 +262,9 @@ Real ones only. Format: what happened, how it was found, how it was fixed.
   `(due_date, id)` fixed it, and the partial index HANDOFF suggested was measured and rejected.
 - Phase 7: a base image tag can be weeks behind its distro's security fixes. No newer tag
   existed, so the runtime images upgrade their packages at build time.
+- After Phase 7: two server rules shaped the browser tests. The login throttle (5 a minute)
+  and the rotating refresh token rule out the usual "sign in once, save the session" setup, so
+  each spec file signs in once and keeps its page.
 - Phase 4: Celery's `send_task` by name keeps the layers clean. Infrastructure publishes a name;
   only the worker imports the job module.
 

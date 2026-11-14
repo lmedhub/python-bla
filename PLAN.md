@@ -14,7 +14,8 @@ decision taken after HANDOFF was written.
 | 4 | Celery: assignment notification, overdue digest, Redis-down behavior; backend image and compose services (moved from 6) | done (PR #5) |
 | 5 | Frontend: generated types, auth, list/filters/URL state, forms, tests | done (PR #6) |
 | 6 | nginx + frontend image, seed, full CI, README, architecture doc; refresh without cookie → 204 | done (PR #7) |
-| 7 | Hardening: EXPLAIN, security review, console check, clean clone | in review (branch `phase-7`) |
+| 7 | Hardening: EXPLAIN, security review, console check, clean clone | done (PR #8) |
+| + | Browser tests (Playwright) in CI, after Phase 7 (not in HANDOFF; asked for by the user) | in review (branch `e2e`) |
 
 ## Decisions and deviations
 
@@ -93,6 +94,9 @@ decision taken after HANDOFF was written.
 | D71 | **New index `(due_date, id)`** for the list order (EXPLAIN: full sort before). No partial index for overdue (measured, under 1 ms gained). The data script is committed so the numbers can be reproduced | ADR 0015, `docs/explain.md`, `scripts/explain_list.sql` |
 | D72 | Runtime images apply their distro's security updates at build time (`apt-get upgrade`, `apk upgrade`): no newer base tag had the fixes. Debian CVEs with no fix are documented, not worked around. Scanned with Trivy (Docker Scout needs a login) | `backend/Dockerfile`, `frontend/Dockerfile`, `docs/security-review.md` |
 | D73 | Django sends `X-Frame-Options: DENY` (Swagger UI and ReDoc are outside nginx's CSP). CSRF middleware, HSTS and the HTTPS redirect stay off, for the reasons in the security review | `config/settings/base.py`, `docs/security-review.md` |
+| D74 | **New dev dependency `@playwright/test` 1.64.1** (the newest release over two weeks old), approved by the user. Browser tests run through nginx in CI's `docker` job, Chromium only. Swagger UI "Authorize" stays a manual check (its markup is not ours) | ADR 0016, `frontend/e2e/`, `.github/workflows/ci.yml` |
+| D75 | Each spec file signs in once and shares a page: login allows 5 a minute per IP, and the rotating refresh token rules out a saved session. The wrong-password case stays in the unit tests, to keep the run at 3 sign-ins (4 with the smoke test) | ADR 0016, `frontend/e2e/support.ts` |
+| D76 | Every browser test fails on a console warning, console error or uncaught exception, turning HANDOFF's "zero console warnings" into a CI check | `frontend/e2e/support.ts` |
 
 ## Definition of done (HANDOFF §13)
 
@@ -106,7 +110,7 @@ Checked item by item at the end of Phase 7 (2026-11-14), on branch `phase-7`.
 | pytest, at least 90% coverage | done | 353 passed, 99.84% (gate `--cov-fail-under=90`) |
 | Schema drift | done | `spectacular --validate --fail-on-warn` then `git diff --exit-code openapi.yaml`: no change; regenerated TS types: no change |
 | Frontend lint, typecheck, test, build | done | eslint, tsc clean; 67 tests passed; build 319 kB JS (100 kB gzipped) |
-| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400 |
+| No browser console warnings (login, list, filter, create, edit, complete, delete) | done | 13-step walk in Edge through nginx: 0 console messages, 0 page errors, 0 responses at or above 400. Since D76, the Playwright tests check this on every push |
 | Swagger UI works with "Authorize" | done | Authorize with a real token, then `GET /users/me` in Swagger UI: 200, 0 console messages |
 | README: setup, architecture, decisions, known limits, tests | done | Sections Quick start, Architecture, Decisions (ADR table), Tests and checks, Known limits and next steps |
 | `docs/GENAI.md` complete and honest | done | Prompts, sample, validation table, 52 logged mistakes, findings, edge cases, performance |
@@ -134,7 +138,10 @@ Checked item by item at the end of Phase 7 (2026-11-14), on branch `phase-7`.
 - `npm audit` reports a moderate advisory in `minimatch` (GHSA-g3hv-75wg-m249), reached only through
   ESLint and typescript-eslint; `npm audit --omit=dev` is clean. typescript-eslint has no
   release with a fixed `minimatch` yet.
-- jsdom has no `<dialog>.showModal()`: tests stub it; focus and Esc are checked in a real browser.
+- jsdom has no `<dialog>.showModal()`: unit tests stub it; the browser tests check focus and Esc.
+- Browser tests in one file run in order and share a page (create, then edit, then delete); a
+  failure skips the rest of the file. Running them twice within a minute hits the login throttle.
+- No browser test for Swagger UI "Authorize", the Mailpit email or the digest (ADR 0016).
 - On Windows, Vitest must run from an upper-case drive path (README).
 - The demo password is in `.env.example` and the README; it protects demo data only.
 - The digest uses the UTC date; a scheduled job has no caller time zone.
